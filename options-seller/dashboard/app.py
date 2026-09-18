@@ -483,7 +483,11 @@ with st.sidebar:
         # Do NOT clear all Streamlit caches — that forced a heavy cold rerun (~60s settle)
         st.rerun()
 
-    st.text_input("Paper portfolio path", key="portfolio_path")
+    st.text_input(
+        "Paper portfolio path",
+        key="portfolio_path",
+        help="JSON file holding the paper book. Changing it switches which book you see — the old one is untouched.",
+    )
     st.number_input(
         "Slippage (fraction)",
         min_value=0.0,
@@ -491,8 +495,13 @@ with st.sidebar:
         step=0.01,
         key="slippage",
         format="%.2f",
+        help="Estimated cost per fill, as a fraction of premium (0.02 = 2%). Applies to new paper fills.",
     )
-    st.text_input("Capital context JSON", key="capital_ctx_path")
+    st.text_input(
+        "Capital context JSON",
+        key="capital_ctx_path",
+        help="Your cash/positions context used by the strategy selector (read-only).",
+    )
 
     st.divider()
     st.markdown("**Open paths (paper)**")
@@ -634,7 +643,7 @@ with _tb3:
     if _ui:
         st.link_button("Open Stock Scanner", _ui, use_container_width=True)
 with _tb4:
-    st.caption("Toolbar always visible. Refresh polls /api/scan only (not Yahoo).")
+    st.caption("Refresh polls the scan JSON only — fast, no Yahoo rescan.")
 
 
 ex = get_executor()
@@ -827,6 +836,12 @@ with tab_pos:
     sub_open, sub_closed = st.tabs(["Open", "Closed"])
     filt = st.session_state.get("strategy_filter")
     focus_id = st.session_state.get("focus_position_id")
+    if filt:
+        fc1, fc2 = st.columns([3, 1])
+        fc1.info(f"Showing only **{filt}** positions (filter set from Strategies in play).")
+        if fc2.button(f"Clear filter", key="clear_strat_filter_pos"):
+            st.session_state["strategy_filter"] = None
+            st.rerun()
 
     with sub_open:
         open_pos = [
@@ -952,11 +967,12 @@ with tab_pos:
                     )
                     mapped_debit = round(credit * frac, 2) if credit else 0.0
                     est_unreal = round(credit - mapped_debit, 2) if credit else 0.0
+                    _pct_est = pct_of_max_profit(est_unreal, p.get("max_profit"))
+                    _pct_est_s = f"{_pct_est:.1f}% max" if _pct_est is not None else "—"
                     st.caption(
                         f"Mapped exit debit **{_money(mapped_debit)}** · "
                         f"EST unrealized if marked here: "
-                        f"**{_money(est_unreal, True)}** "
-                        f"({pct_of_max_profit(est_unreal, p.get('max_profit')) or '—'}% max)"
+                        f"**{_money(est_unreal, True)}** ({_pct_est_s})"
                     )
                     b_upd, b_close_mark, b_close_50, b_custom = st.columns(4)
                     with b_upd:
@@ -1038,9 +1054,6 @@ with tab_pos:
                             st.session_state["focus_position_id"] = None
                             st.rerun()
 
-                    if st.button("Roll (stub)", key=f"roll_{pid}"):
-                        st.info("Roll is a stub — close + re-open from Candidates for now.")
-
             # clear focus after render so next rerun doesn't keep forcing expand
             if focus_id and any(p["id"] == focus_id for p in open_pos):
                 pass  # keep until user navigates away / closes
@@ -1112,7 +1125,17 @@ with tab_act:
                     "Position": (f.get("position_id") or "")[:8],
                 }
             )
-        st.dataframe(pd.DataFrame(frows), use_container_width=True, hide_index=True)
+        st.dataframe(
+            pd.DataFrame(frows).style.format(
+                {
+                    "Fill $": "${:,.2f}",
+                    "Realized": "${:+,.2f}",
+                },
+                na_rep="—",
+            ),
+            use_container_width=True,
+            hide_index=True,
+        )
 
 # ── Candidates ───────────────────────────────────────────────────────────
 with tab_cand:
@@ -1129,6 +1152,10 @@ with tab_cand:
         st.markdown(
             f"**{len(cands)}** symbols from scan · asOf `{as_of}` · source `{src}`"
         )
+        st.caption(
+            "💰 **quoted** = real premium from the scan — opens as a filled paper trade. "
+            "🧾 **template** = no live quotes yet — opens as a *planned* idea, not a fill."
+        )
         for row in cands:
             ov = celebrity_overlay(row.get("symbol"))
             badge_html = (
@@ -1136,6 +1163,22 @@ with tab_cand:
                 if ov.get("badge")
                 else ""
             )
+            if row["skipped"]:
+                # Compact 4-col layout — no empty holes from unused action columns
+                scols = st.columns([1.4, 0.8, 1.2, 4.6])
+                scols[0].markdown(
+                    f"**{row['symbol']}**{badge_html}",
+                    unsafe_allow_html=True,
+                )
+                if ov.get("caution"):
+                    scols[0].markdown(
+                        f'<div class="caution-cap">{ov["caution"]}</div>',
+                        unsafe_allow_html=True,
+                    )
+                scols[1].write(_money(row["price"]))
+                scols[2].write(row.get("bias") or "—")
+                scols[3].caption(f"Skipped — {row.get('skip_reason') or 'no strategy matched'}")
+                continue
             cols = st.columns([1.4, 0.8, 1.2, 1.5, 1, 1, 1.4])
             cols[0].markdown(
                 f"**{row['symbol']}**{badge_html}",
@@ -1148,9 +1191,6 @@ with tab_cand:
                 )
             cols[1].write(_money(row["price"]))
             cols[2].write(row.get("bias") or "—")
-            if row["skipped"]:
-                cols[3].caption("skipped")
-                continue
             tmpl = "🧾 template" if row.get("is_template") else "💰 quoted"
             cols[3].write(f"{row['strategy']} ({tmpl})")
             cols[4].write(_money(row.get("net_premium")))

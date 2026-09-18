@@ -27,6 +27,7 @@ from typing import Any, Optional
 from options_seller.config import load_defaults
 from options_seller.models.scanner import PortfolioContext, ScanEnvelope
 from options_seller.selector import Selection, select_and_build
+from options_seller.strategies.base import should_skip_earnings
 
 DEFAULT_SCANNER_BASE_URL = "https://views-pill-radical-templates.trycloudflare.com"
 DEFAULT_SCANNER_JSON_PATH = Path("/workspace/stock-data-scanner/scan-latest.json")
@@ -322,8 +323,20 @@ def build_candidates(
             "notes": None,
             "plan": None,
             "skipped": sel is None,
+            "skip_reason": None,
         }
-        if sel is not None:
+        if sel is None:
+            if should_skip_earnings(scan, cfg):
+                dte = scan.days_to_earnings
+                row["skip_reason"] = (
+                    f"earnings in {dte}d — skipped by rule" if dte is not None
+                    else "earnings upcoming — skipped by rule"
+                )
+            elif scan.price is None:
+                row["skip_reason"] = "no price in scan"
+            else:
+                row["skip_reason"] = "no strategy matched this scan"
+        else:
             plan = sel.result.plan
             row.update(
                 {
