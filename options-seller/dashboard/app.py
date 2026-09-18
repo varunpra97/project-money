@@ -318,6 +318,56 @@ st.markdown(
         border-color: #f85149 !important;
     }
 
+    /* ── Mobile / small screens (phones, narrow tablets) ─────────────── */
+    @media (max-width: 768px) {
+        /* Tighter page padding so content uses the full width */
+        .main .block-container,
+        section.main > div.block-container {
+            padding-left: 0.75rem !important;
+            padding-right: 0.75rem !important;
+            padding-top: 1rem !important;
+        }
+        h1 { font-size: 1.5rem !important; line-height: 1.25 !important; }
+        h2 { font-size: 1.2rem !important; }
+
+        /* Touch-friendly tap targets */
+        div[data-testid="stButton"] > button,
+        .stButton > button,
+        div[data-testid="stLinkButton"] > a {
+            min-height: 44px !important;
+            font-size: 0.95rem !important;
+        }
+
+        /* Let column rows wrap into a ~2-up grid instead of squeezing
+           4–7 columns into an unreadable strip (metrics, action buttons,
+           candidate rows, strategy cards). */
+        div[data-testid="stHorizontalBlock"] {
+            flex-wrap: wrap !important;
+            gap: 0.4rem !important;
+        }
+        div[data-testid="stHorizontalBlock"] > div[data-testid="column"],
+        div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"] {
+            flex: 1 1 44% !important;
+            min-width: 44% !important;
+            max-width: 100% !important;
+        }
+
+        /* Cards stay compact */
+        .metric-card, .strat-card { padding: 0.6rem 0.7rem !important; }
+        .metric-value { font-size: 0.95rem !important; }
+        .strat-name { font-size: 0.85rem !important; }
+        .pos-header { font-size: 0.95rem !important; }
+        .paper-banner { font-size: 0.72rem !important; letter-spacing: 0.03em !important; }
+        .flash-ok, .flash-bad, .flash-amber { flex-wrap: wrap !important; }
+
+        /* Long captions / URLs wrap instead of forcing horizontal scroll */
+        [data-testid="stCaptionContainer"], .stCaption, small {
+            overflow-wrap: anywhere !important;
+        }
+        /* Charts scroll internally instead of stretching the page */
+        div[data-testid="stPlotlyChart"] { overflow-x: auto !important; }
+    }
+
 </style>
 """,
     unsafe_allow_html=True,
