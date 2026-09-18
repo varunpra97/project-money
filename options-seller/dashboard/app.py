@@ -342,6 +342,11 @@ def _money(v: Any, signed: bool = False) -> str:
         return "—"
 
 
+def _money_md(v: Any, signed: bool = False) -> str:
+    """Money for st.markdown/st.caption: escape $ so Streamlit doesn't eat it as KaTeX math."""
+    return _money(v, signed).replace("$", "\\$")
+
+
 def _pnl_class(v: Any) -> str:
     try:
         if v is None:
@@ -655,7 +660,7 @@ if _la:
     css = {"ok": "flash-ok", "bad": "flash-bad", "amber": "flash-amber"}.get(kind, "flash-ok")
     pnl_bit = ""
     if _la.get("pnl") is not None:
-        pnl_bit = f" · <b>{_money(_la['pnl'], signed=True)}</b>"
+        pnl_bit = f" · <b>{_money_md(_la['pnl'], signed=True)}</b>"
     ts_bit = _format_ts_pt(_la.get("ts"))
     c_flash, c_x = st.columns([12, 1])
     with c_flash:
@@ -809,11 +814,11 @@ else:
                 f'<div class="strat-card{" active" if active else ""}">'
                 f'<div class="strat-name">{disp}</div>'
                 f'<div class="strat-meta">{row["open_count"]} open · '
-                f'cap {_money(row["capital"])}</div>'
+                f'cap {_money_md(row["capital"])}</div>'
                 f'<div>Unreal <span class="{_pnl_class(row["unrealized"])}">'
-                f'{_money(row["unrealized"], True)}</span> · '
+                f'{_money_md(row["unrealized"], True)}</span> · '
                 f'Real <span class="{_pnl_class(row["realized"])}">'
-                f'{_money(row["realized"], True)}</span></div></div>',
+                f'{_money_md(row["realized"], True)}</span></div></div>',
                 unsafe_allow_html=True,
             )
             label = f"Filter {disp}" if not active else f"Clear filter ({disp})"
@@ -831,9 +836,9 @@ _risk_status_name = {"ok": "OK", "soft_warn": "Watch", "hard_breach": "BREACH"}.
     _book["status"], str(_book["status"]).upper()
 )
 st.markdown(
-    f"**Capital / risk** — cap ${_book['max_portfolio_risk_usd']:,.0f} · "
-    f"open risk ${_book['aggregate_open_risk']:,.0f} · "
-    f"headroom ${_book['headroom']:,.0f} · "
+    f"**Capital / risk** — cap {_money_md(_book['max_portfolio_risk_usd'])} · "
+    f"open risk {_money_md(_book['aggregate_open_risk'])} · "
+    f"headroom {_money_md(_book['headroom'])} · "
     f"status **{_risk_status_name}** · "
     f"auto-trim **{'on' if _book.get('auto_trim') else 'off'}**"
 )
@@ -963,7 +968,7 @@ with tab_pos:
                 header = (
                     f"{p.get('underlying')} · {_strat_name(p.get('strategy'))} · "
                     f"{(p.get('status') or 'OPEN').upper()} · "
-                    f"{_money(ur, True)} · {pct_s}"
+                    f"{_money_md(ur, True)} · {pct_s}"
                 )
                 with st.expander(header, expanded=expanded):
                     st.markdown(
@@ -1017,9 +1022,9 @@ with tab_pos:
                     _pct_est = pct_of_max_profit(est_unreal, p.get("max_profit"))
                     _pct_est_s = f"{_pct_est:.1f}% max" if _pct_est is not None else "—"
                     st.caption(
-                        f"Mapped exit debit **{_money(mapped_debit)}** · "
+                        f"Mapped exit debit **{_money_md(mapped_debit)}** · "
                         f"EST unrealized if marked here: "
-                        f"**{_money(est_unreal, True)}** ({_pct_est_s})"
+                        f"**{_money_md(est_unreal, True)}** ({_pct_est_s})"
                     )
                     b_upd, b_close_mark, b_close_50, b_custom = st.columns(4)
                     with b_upd:
@@ -1027,7 +1032,7 @@ with tab_pos:
                             ex.update_mark(pid, mark_fraction=frac)
                             _set_last_action(
                                 "ok",
-                                f"Mark updated and saved — {p.get('underlying')} → {_money(mapped_debit)}",
+                                f"Mark updated and saved — {p.get('underlying')} → {_money_md(mapped_debit)}",
                                 pnl=est_unreal,
                                 position_id=pid,
                             )
@@ -1052,7 +1057,7 @@ with tab_pos:
                             )
                             st.session_state["focus_position_id"] = None
                             st.rerun()
-                        st.caption(f"EST realized {_money(est_m, True)}")
+                        st.caption(f"EST realized {_money_md(est_m, True)}")
                     with b_close_50:
                         half = round(credit * 0.5, 2) if credit else 0.0
                         est_50 = _est_realized_on_close(p, half)
@@ -1072,7 +1077,7 @@ with tab_pos:
                             )
                             st.session_state["focus_position_id"] = None
                             st.rerun()
-                        st.caption(f"EST realized {_money(est_50, True)}")
+                        st.caption(f"EST realized {_money_md(est_50, True)}")
                     with b_custom:
                         # Empty default: use None sentinel via checkbox / number with None
                         use_custom = st.checkbox(
@@ -1090,7 +1095,7 @@ with tab_pos:
                             help="Total $ for the multi-leg ticket",
                         )
                         est_c = _est_realized_on_close(p, float(custom_px) if use_custom else None)
-                        st.caption(f"EST realized {_money(est_c, True)}")
+                        st.caption(f"EST realized {_money_md(est_c, True)}")
                         if st.button(
                             "Confirm close @ custom",
                             key=f"cl_custom_{pid}",
@@ -1099,7 +1104,7 @@ with tab_pos:
                             closed = ex.close_position(pid, price=float(custom_px))
                             _set_last_action(
                                 "ok" if (closed.get("realized_pnl") or 0) >= 0 else "bad",
-                                f"Closed {closed.get('underlying')} @ custom {_money(custom_px)}",
+                                f"Closed {closed.get('underlying')} @ custom {_money_md(custom_px)}",
                                 pnl=closed.get("realized_pnl"),
                                 position_id=pid,
                             )
@@ -1228,7 +1233,7 @@ with tab_cand:
             if row["skipped"]:
                 # Uniform one-liner for every skipped row
                 st.markdown(
-                    f"**{row['symbol']}**{badge_html} · {_money(row['price'])} · "
+                    f"**{row['symbol']}**{badge_html} · {_money_md(row['price'])} · "
                     f"{row.get('bias') or '—'} — skipped: "
                     f"{row.get('skip_reason') or 'no strategy matched'}",
                     unsafe_allow_html=True,
@@ -1250,8 +1255,9 @@ with tab_cand:
             cols[2].caption(f"{tmpl} · {row.get('bias') or '—'}")
             cols[3].write(_plan_legs_summary(row.get("plan")))
             cols[3].caption("legs / strikes")
-            cols[4].write(_money(row.get("net_premium")))
-            cols[4].caption("credit")
+            _np = row.get("net_premium")
+            cols[4].write(_money(_np) if _np is not None else "—")
+            cols[4].caption("credit" if _np is not None else "credit · quote pending")
             cols[5].write(f"DTE {row.get('target_dte') or '—'}")
             # Prefer volume / IV cols when celebrity overlay asks and scan has them
             if ov.get("prefer_volume_cols"):
@@ -1307,7 +1313,7 @@ with tab_cand:
                             break
                     _set_last_action(
                         "ok",
-                        f"Opened {row['symbol']} {_strat_name(row['strategy'])} — fill {_money(ticket.fill_price)}",
+                        f"Opened {row['symbol']} {_strat_name(row['strategy'])} — fill {_money_md(ticket.fill_price)}",
                         pnl=None,
                         position_id=new_id,
                     )
@@ -1320,11 +1326,11 @@ with tab_cand:
                     st.caption(str(row["notes"]))
                 _facts = []
                 if row.get("max_profit") is not None:
-                    _facts.append(f"**Max profit:** {_money(row['max_profit'])}")
+                    _facts.append(f"**Max profit:** {_money_md(row['max_profit'])}")
                 if row.get("max_loss") is not None:
-                    _facts.append(f"**Max loss:** {_money(row['max_loss'])}")
+                    _facts.append(f"**Max loss:** {_money_md(row['max_loss'])}")
                 if row.get("capital") is not None:
-                    _facts.append(f"**Capital:** {_money(row['capital'])}")
+                    _facts.append(f"**Capital:** {_money_md(row['capital'])}")
                 if row.get("iv_rank") is not None:
                     _facts.append(f"**IV rank:** {row['iv_rank']}")
                 if row.get("days_to_earnings") is not None:
@@ -1358,7 +1364,7 @@ with tab_risk:
         unsafe_allow_html=True,
     )
     st.caption(
-        f"Soft warn at {_money(book['soft_warn_usd'])} "
+        f"Soft warn at {_money_md(book['soft_warn_usd'])} "
         f"({book['soft_warn_pct']*100:.0f}%) — status only, no auto-trim at soft. "
         f"Hard breach trims highest-risk opens first. "
         f"Open risk ≈ max loss / capital at risk; headroom = cap − open risk."
@@ -1459,11 +1465,11 @@ with tab_perf:
     closes = [f for f in reversed(fills) if f.get("type") == "close"]
     unreal = sum(float(p.get("unrealized_pnl") or 0) for p in ex.list_open() if p.get("status") == "open")
     if not closes:
-        st.caption(f"No closes yet. Open unrealized (EST): {_money(unreal, True)}")
+        st.caption(f"No closes yet. Open unrealized (EST): {_money_md(unreal, True)}")
     elif len(closes) < 2:
         st.caption(
             f"Only {len(closes)} close so far — the cumulative line needs 2+ closes. "
-            f"Open unrealized (EST): {_money(unreal, True)}"
+            f"Open unrealized (EST): {_money_md(unreal, True)}"
         )
     else:
         cum = 0.0
