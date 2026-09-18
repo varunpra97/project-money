@@ -136,11 +136,13 @@ final class APIClient {
     }
 
     func positions() async throws -> [Position] {
-        try await get("/api/portfolio/positions", ttl: 30)
+        let r: PositionsResponse = try await get("/api/portfolio/positions", ttl: 30)
+        return r.positions
     }
 
     func activity() async throws -> [ActivityItem] {
-        try await get("/api/portfolio/activity", ttl: 60)
+        let r: ActivityResponse = try await get("/api/portfolio/activity", ttl: 60)
+        return r.activity
     }
 
     func celebrity() async throws -> CelebrityResponse {
@@ -156,7 +158,8 @@ final class APIClient {
     }
 
     func candidates() async throws -> [Candidate] {
-        try await get("/api/candidates", ttl: 300)
+        let r: CandidatesResponse = try await get("/api/candidates", ttl: 300)
+        return r.candidates
     }
 
     func quote(_ symbol: String, range: QuoteRange) async throws -> QuoteResponse {

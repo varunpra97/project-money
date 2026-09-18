@@ -11,11 +11,7 @@ Robinhood-style dark trading insights app (SwiftUI, iOS 17+). Four tabs — **Ho
 
 1. Copy this folder to your Mac (or `git pull` — it's committed in the repo) and double-click **`Pulse.xcodeproj`**.
 2. In the project navigator select **Pulse** (top item) → **Signing & Capabilities** → pick your **Team**. (Bundle ID is `com.pulse.app`; change it if Xcode complains it's taken.)
-3. Open **`Pulse/Config.swift`** and set `AppConfig.baseURL` to your API's public URL, e.g.:
-   ```swift
-   static let baseURL = "https://your-tunnel.trycloudflare.com"
-   ```
-   No trailing slash. If you leave it empty, the app shows a setup screen instead of crashing.
+3. `AppConfig.baseURL` in **`Pulse/Config.swift`** is already set to the live Pulse API URL (`https://guided-appears-surname-yang.trycloudflare.com/pulse`) — but tunnel URLs change when the backend restarts. If the app can't reach the API later, paste the fresh URL there (no trailing slash) and rebuild.
 4. Select your iPhone as the run destination (top toolbar) and press **Cmd+R**.
 
 The first launch needs the phone unlocked and, on iOS 17+, Settings → General → VPN & Device Management → trust your developer certificate.

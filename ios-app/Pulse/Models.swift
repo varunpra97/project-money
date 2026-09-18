@@ -8,6 +8,14 @@ struct HealthResponse: Decodable {
 
 // MARK: - Portfolio
 
+struct Greeks: Decodable {
+    let delta: Double?
+    let theta: Double?
+    let gamma: Double?
+    let vega: Double?
+    // The API also sends non-numeric flags (e.g. "estimated"); those are ignored.
+}
+
 struct PortfolioSummary: Decodable {
     let accountValue: Double
     let buyingPower: Double
@@ -15,7 +23,7 @@ struct PortfolioSummary: Decodable {
     let dayPnlPct: Double
     let totalPnl: Double
     let openPositions: Int
-    let greeks: [String: Double]?
+    let greeks: Greeks?
     let asOf: String
 
     enum CodingKeys: String, CodingKey {
@@ -30,8 +38,7 @@ struct PortfolioSummary: Decodable {
     }
 }
 
-struct Position: Decodable, Identifiable {
-    let id: String
+struct Position: Decodable, Identifiable {    let id: String
     let underlying: String
     let strategy: String
     let displayName: String
@@ -60,8 +67,7 @@ struct Position: Decodable, Identifiable {
     }
 }
 
-struct ActivityItem: Decodable, Identifiable {
-    let id = UUID()
+struct ActivityItem: Decodable, Identifiable {    let id = UUID()
     let ts: String
     let kind: String
     let text: String
@@ -73,6 +79,18 @@ struct ActivityItem: Decodable, Identifiable {
         case text
         case amount
     }
+}
+
+struct PositionsResponse: Decodable {
+    let positions: [Position]
+}
+
+struct ActivityResponse: Decodable {
+    let activity: [ActivityItem]
+}
+
+struct CandidatesResponse: Decodable {
+    let candidates: [Candidate]
 }
 
 // MARK: - Insights
