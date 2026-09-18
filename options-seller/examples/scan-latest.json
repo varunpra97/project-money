@@ -1,0 +1,161 @@
+{
+  "schema": "stock-data-scanner.scan/v0.1",
+  "asOf": "2026-09-18T20:57:30Z",
+  "source": "yahoo_finance",
+  "universe": [
+    "AAPL",
+    "MSFT"
+  ],
+  "results": [
+    {
+      "symbol": "AAPL",
+      "name": null,
+      "price": 336.1300048828125,
+      "change": -0.8699951171875,
+      "changePct": -0.25815878848293766,
+      "previousClose": 337.0,
+      "open": 337.9049987792969,
+      "dayHigh": 338.489990234375,
+      "dayLow": 332.5299987792969,
+      "volume": 85477923.0,
+      "avgVolume": 53441946.0,
+      "marketCap": 4905541794660.645,
+      "bid": null,
+      "ask": null,
+      "sector": null,
+      "industry": null,
+      "pe": null,
+      "eps": null,
+      "beta": null,
+      "dividendYield": null,
+      "fiftyTwoWeekHigh": 344.57000732421875,
+      "fiftyTwoWeekLow": 240.2100067138672,
+      "trend": {
+        "bias": "bullish",
+        "sma20": 322.63999938964844,
+        "sma50": 320.02528564453127,
+        "sma200": 285.94364616394046,
+        "priceVsSma50Pct": 5.0323271193544326
+      },
+      "liquidity": {
+        "volume": 85477923.0,
+        "avgVolume": 53441946.0,
+        "volumeRatio": 1.599453788602683
+      },
+      "earnings": {
+        "nextDate": null,
+        "daysToEarnings": null
+      },
+      "options": {
+        "iv": null,
+        "ivRank": null,
+        "ivPercentile": null,
+        "impliedMovePct": null,
+        "suggested": null
+      },
+      "markers": {
+        "available": [
+          "symbol",
+          "price",
+          "change",
+          "changePct",
+          "previousClose",
+          "open",
+          "dayHigh",
+          "dayLow",
+          "volume",
+          "avgVolume",
+          "marketCap",
+          "fiftyTwoWeekHigh",
+          "fiftyTwoWeekLow"
+        ],
+        "missing": [
+          "name",
+          "bid",
+          "ask",
+          "sector",
+          "industry",
+          "pe",
+          "eps",
+          "beta",
+          "dividendYield"
+        ]
+      }
+    },
+    {
+      "symbol": "MSFT",
+      "name": null,
+      "price": 493.7799987792969,
+      "change": -3.1200012207031023,
+      "changePct": -0.6278931818682033,
+      "previousClose": 496.9,
+      "open": 497.4700012207031,
+      "dayHigh": 498.6499938964844,
+      "dayLow": 491.1000061035156,
+      "volume": 37762318.0,
+      "avgVolume": 34401366.0,
+      "marketCap": 3666585843481.5933,
+      "bid": null,
+      "ask": null,
+      "sector": null,
+      "industry": null,
+      "pe": null,
+      "eps": null,
+      "beta": null,
+      "dividendYield": null,
+      "fiftyTwoWeekHigh": 553.719970703125,
+      "fiftyTwoWeekLow": 349.20001220703125,
+      "trend": {
+        "bias": "bullish",
+        "sma20": 497.51000061035154,
+        "sma50": 464.19948120117186,
+        "sma200": 430.075680847168,
+        "priceVsSma50Pct": 6.372371959912983
+      },
+      "liquidity": {
+        "volume": 37762318.0,
+        "avgVolume": 34401366.0,
+        "volumeRatio": 1.0976982134953595
+      },
+      "earnings": {
+        "nextDate": null,
+        "daysToEarnings": null
+      },
+      "options": {
+        "iv": null,
+        "ivRank": null,
+        "ivPercentile": null,
+        "impliedMovePct": null,
+        "suggested": null
+      },
+      "markers": {
+        "available": [
+          "symbol",
+          "price",
+          "change",
+          "changePct",
+          "previousClose",
+          "open",
+          "dayHigh",
+          "dayLow",
+          "volume",
+          "avgVolume",
+          "marketCap",
+          "fiftyTwoWeekHigh",
+          "fiftyTwoWeekLow"
+        ],
+        "missing": [
+          "name",
+          "bid",
+          "ask",
+          "sector",
+          "industry",
+          "pe",
+          "eps",
+          "beta",
+          "dividendYield"
+        ]
+      }
+    }
+  ]
+}

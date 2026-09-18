@@ -1,0 +1,1445 @@
+{
+  "schema": "stock-data-scanner.scan/v0.1",
+  "asOf": "2026-09-18T21:44:59Z",
+  "source": "yahoo_finance",
+  "universe": [
+    "SPCX",
+    "AMZN",
+    "GOOGL",
+    "NFLX",
+    "META",
+    "CBRS",
+    "HD",
+    "INTC",
+    "UBER",
+    "VST",
+    "TEM",
+    "BE",
+    "FDXF",
+    "V",
+    "MA",
+    "SPGI",
+    "AVGO",
+    "SPY",
+    "QQQ"
+  ],
+  "results": [
+    {
+      "symbol": "SPCX",
+      "name": "Space Exploration Technologies ",
+      "price": 152.7100067138672,
+      "change": -2.440993286132823,
+      "changePct": -1.573301677806023,
+      "previousClose": 155.151,
+      "open": 154.6649932861328,
+      "dayHigh": 156.60000610351562,
+      "dayLow": 149.92999267578125,
+      "volume": 335217990.0,
+      "avgVolume": 95849241.0,
+      "marketCap": 2012989703901.67,
+      "bid": 150.53,
+      "ask": 154.95,
+      "sector": "Industrials",
+      "industry": "Aerospace & Defense",
+      "pe": 87.605774,
+      "eps": -1.1,
+      "beta": null,
+      "dividendYield": null,
+      "fiftyTwoWeekHigh": 225.63999938964844,
+      "fiftyTwoWeekLow": 104.83000183105469,
+      "trend": {
+        "bias": "bullish",
+        "sma20": 145.33450088500976,
+        "sma50": 134.6283999633789,
+        "sma200": null,
+        "priceVsSma50Pct": 13.430752170720861
+      },
+      "liquidity": {
+        "volume": 335217990.0,
+        "avgVolume": 95849241.0,
+        "volumeRatio": 3.4973463170146544
+      },
+      "earnings": {
+        "nextDate": "2026-11-03",
+        "daysToEarnings": 46
+      },
+      "options": {
+        "iv": null,
+        "ivRank": null,
+        "ivPercentile": null,
+        "impliedMovePct": null,
+        "suggested": null
+      },
+      "markers": {
+        "available": [
+          "symbol",
+          "name",
+          "price",
+          "change",
+          "changePct",
+          "previousClose",
+          "open",
+          "dayHigh",
+          "dayLow",
+          "volume",
+          "avgVolume",
+          "marketCap",
+          "bid",
+          "ask",
+          "sector",
+          "industry",
+          "pe",
+          "eps",
+          "fiftyTwoWeekHigh",
+          "fiftyTwoWeekLow"
+        ],
+        "missing": [
+          "beta",
+          "dividendYield"
+        ]
+      }
+    },
+    {
+      "symbol": "AMZN",
+      "name": "Amazon.com, Inc.",
+      "price": 253.7100067138672,
+      "change": 3.510006713867199,
+      "changePct": 1.4028803812418862,
+      "previousClose": 250.2,
+      "open": 252.86000061035156,
+      "dayHigh": 255.42999267578125,
+      "dayLow": 251.8800048828125,
+      "volume": 52017136.0,
+      "avgVolume": 46527384.0,
+      "marketCap": 2736595688769.9966,
+      "bid": 254.22,
+      "ask": 265.39,
+      "sector": "Consumer Cyclical",
+      "industry": "Internet Retail",
+      "pe": 20.411102,
+      "eps": 12.43,
+      "beta": 1.443,
+      "dividendYield": null,
+      "fiftyTwoWeekHigh": 287.20001220703125,
+      "fiftyTwoWeekLow": 196.0,
+      "trend": {
+        "bias": "bearish",
+        "sma20": 256.1334999084473,
+        "sma50": 255.8397998046875,
+        "sma200": 240.30074989318848,
+        "priceVsSma50Pct": -0.8324713717123844
+      },
+      "liquidity": {
+        "volume": 52017136.0,
+        "avgVolume": 46527384.0,
+        "volumeRatio": 1.1179896982817688
+      },
+      "earnings": {
+        "nextDate": "2026-10-29",
+        "daysToEarnings": 41
+      },
+      "options": {
+        "iv": null,
+        "ivRank": null,
+        "ivPercentile": null,
+        "impliedMovePct": null,
+        "suggested": null
+      },
+      "markers": {
+        "available": [
+          "symbol",
+          "name",
+          "price",
+          "change",
+          "changePct",
+          "previousClose",
+          "open",
+          "dayHigh",
+          "dayLow",
+          "volume",
+          "avgVolume",
+          "marketCap",
+          "bid",
+          "ask",
+          "sector",
+          "industry",
+          "pe",
+          "eps",
+          "beta",
+          "fiftyTwoWeekHigh",
+          "fiftyTwoWeekLow"
+        ],
+        "missing": [
+          "dividendYield"
+        ]
+      }
+    },
+    {
+      "symbol": "GOOGL",
+      "name": "Alphabet Inc.",
+      "price": 349.5400085449219,
+      "change": 3.040008544921875,
+      "changePct": 0.8773473434117965,
+      "previousClose": 346.5,
+      "open": 356.9200134277344,
+      "dayHigh": 359.44000244140625,
+      "dayLow": 348.45001220703125,
+      "volume": 47459444.0,
+      "avgVolume": 29676673.0,
+      "marketCap": 4274851525331.5776,
+      "bid": 347.03,
+      "ask": 352.97,
+      "sector": "Communication Services",
+      "industry": "Internet Content & Information",
+      "pe": 17.529589,
+      "eps": 19.94,
+      "beta": 1.225,
+      "dividendYield": 0.25,
+      "fiftyTwoWeekHigh": 408.6099853515625,
+      "fiftyTwoWeekLow": 235.83999633789062,
+      "trend": {
+        "bias": "bullish",
+        "sma20": 341.67655792236326,
+        "sma50": 345.3990576171875,
+        "sma200": 337.0870294189453,
+        "priceVsSma50Pct": 1.198888889941287
+      },
+      "liquidity": {
+        "volume": 47459444.0,
+        "avgVolume": 29676673.0,
+        "volumeRatio": 1.5992171359639944
+      },
+      "earnings": {
+        "nextDate": "2026-10-28",
+        "daysToEarnings": 40
+      },
+      "options": {
+        "iv": null,
+        "ivRank": null,
+        "ivPercentile": null,
+        "impliedMovePct": null,
+        "suggested": null
+      },
+      "markers": {
+        "available": [
+          "symbol",
+          "name",
+          "price",
+          "change",
+          "changePct",
+          "previousClose",
+          "open",
+          "dayHigh",
+          "dayLow",
+          "volume",
+          "avgVolume",
+          "marketCap",
+          "bid",
+          "ask",
+          "sector",
+          "industry",
+          "pe",
+          "eps",
+          "beta",
+          "dividendYield",
+          "fiftyTwoWeekHigh",
+          "fiftyTwoWeekLow"
+        ],
+        "missing": []
+      }
+    },
+    {
+      "symbol": "NFLX",
+      "name": "Netflix, Inc.",
+      "price": 71.79000091552734,
+      "change": -3.6899990844726602,
+      "changePct": -4.888711028713116,
+      "previousClose": 75.48,
+      "open": 71.2699966430664,
+      "dayHigh": 72.37999725341797,
+      "dayLow": 70.11000061035156,
+      "volume": 113606170.0,
+      "avgVolume": 39628317.0,
+      "marketCap": 298929233152.2406,
+      "bid": 71.0,
+      "ask": 74.84,
+      "sector": "Communication Services",
+      "industry": "Entertainment",
+      "pe": 22.575472,
+      "eps": 3.18,
+      "beta": 1.526,
+      "dividendYield": null,
+      "fiftyTwoWeekHigh": 124.86000061035156,
+      "fiftyTwoWeekLow": 65.08000183105469,
+      "trend": {
+        "bias": "bearish",
+        "sma20": 78.9150001525879,
+        "sma50": 75.71719970703126,
+        "sma200": 85.48174976348876,
+        "priceVsSma50Pct": -5.186666710733128
+      },
+      "liquidity": {
+        "volume": 113606170.0,
+        "avgVolume": 39628317.0,
+        "volumeRatio": 2.8667927028039064
+      },
+      "earnings": {
+        "nextDate": "2026-10-20",
+        "daysToEarnings": 32
+      },
+      "options": {
+        "iv": null,
+        "ivRank": null,
+        "ivPercentile": null,
+        "impliedMovePct": null,
+        "suggested": null
+      },
+      "markers": {
+        "available": [
+          "symbol",
+          "name",
+          "price",
+          "change",
+          "changePct",
+          "previousClose",
+          "open",
+          "dayHigh",
+          "dayLow",
+          "volume",
+          "avgVolume",
+          "marketCap",
+          "bid",
+          "ask",
+          "sector",
+          "industry",
+          "pe",
+          "eps",
+          "beta",
+          "fiftyTwoWeekHigh",
+          "fiftyTwoWeekLow"
+        ],
+        "missing": [
+          "dividendYield"
+        ]
+      }
+    },
+    {
+      "symbol": "META",
+      "name": "Meta Platforms, Inc.",
+      "price": 665.75,
+      "change": -15.830000000000041,
+      "changePct": -2.3225446756066845,
+      "previousClose": 681.58,
+      "open": 686.8200073242188,
+      "dayHigh": 690.1500244140625,
+      "dayLow": 660.7999877929688,
+      "volume": 27394770.0,
+      "avgVolume": 18331955.0,
+      "marketCap": 1696002269293.75,
+      "bid": 601.0,
+      "ask": 690.0,
+      "sector": "Communication Services",
+      "industry": "Internet Content & Information",
+      "pe": 25.084776,
+      "eps": 26.54,
+      "beta": 1.243,
+      "dividendYield": 0.31,
+      "fiftyTwoWeekHigh": 790.7999877929688,
+      "fiftyTwoWeekLow": 520.260009765625,
+      "trend": {
+        "bias": "bullish",
+        "sma20": 614.6100006103516,
+        "sma50": 607.3789965820313,
+        "sma200": 623.5469723510743,
+        "priceVsSma50Pct": 9.610309830673453
+      },
+      "liquidity": {
+        "volume": 27394770.0,
+        "avgVolume": 18331955.0,
+        "volumeRatio": 1.494372531462138
+      },
+      "earnings": {
+        "nextDate": "2026-10-28",
+        "daysToEarnings": 40
+      },
+      "options": {
+        "iv": null,
+        "ivRank": null,
+        "ivPercentile": null,
+        "impliedMovePct": null,
+        "suggested": null
+      },
+      "markers": {
+        "available": [
+          "symbol",
+          "name",
+          "price",
+          "change",
+          "changePct",
+          "previousClose",
+          "open",
+          "dayHigh",
+          "dayLow",
+          "volume",
+          "avgVolume",
+          "marketCap",
+          "bid",
+          "ask",
+          "sector",
+          "industry",
+          "pe",
+          "eps",
+          "beta",
+          "dividendYield",
+          "fiftyTwoWeekHigh",
+          "fiftyTwoWeekLow"
+        ],
+        "missing": []
+      }
+    },
+    {
+      "symbol": "CBRS",
+      "name": "Cerebras Systems Inc.",
+      "price": 198.3699951171875,
+      "change": 4.569995117187489,
+      "changePct": 2.3580986156798187,
+      "previousClose": 193.8,
+      "open": 198.0,
+      "dayHigh": 203.14999389648438,
+      "dayLow": 196.61000061035156,
+      "volume": 10785898.0,
+      "avgVolume": 7066625.0,
+      "marketCap": 47125577653.18933,
+      "bid": 199.43,
+      "ask": 246.52,
+      "sector": "Technology",
+      "industry": "Semiconductors",
+      "pe": 155.74556,
+      "eps": -4.66,
+      "beta": null,
+      "dividendYield": null,
+      "fiftyTwoWeekHigh": 386.3399963378906,
+      "fiftyTwoWeekLow": 160.80999755859375,
+      "trend": {
+        "bias": "bearish",
+        "sma20": 189.1354995727539,
+        "sma50": 201.6843997192383,
+        "sma200": null,
+        "priceVsSma50Pct": -1.6433619093319647
+      },
+      "liquidity": {
+        "volume": 10785898.0,
+        "avgVolume": 7066625.0,
+        "volumeRatio": 1.526315320255426
+      },
+      "earnings": {
+        "nextDate": "2026-11-10",
+        "daysToEarnings": 53
+      },
+      "options": {
+        "iv": null,
+        "ivRank": null,
+        "ivPercentile": null,
+        "impliedMovePct": null,
+        "suggested": null
+      },
+      "markers": {
+        "available": [
+          "symbol",
+          "name",
+          "price",
+          "change",
+          "changePct",
+          "previousClose",
+          "open",
+          "dayHigh",
+          "dayLow",
+          "volume",
+          "avgVolume",
+          "marketCap",
+          "bid",
+          "ask",
+          "sector",
+          "industry",
+          "pe",
+          "eps",
+          "fiftyTwoWeekHigh",
+          "fiftyTwoWeekLow"
+        ],
+        "missing": [
+          "beta",
+          "dividendYield"
+        ]
+      }
+    },
+    {
+      "symbol": "HD",
+      "name": "Home Depot, Inc. (The)",
+      "price": 299.9800109863281,
+      "change": -3.019989013671875,
+      "changePct": -0.9966960441161304,
+      "previousClose": 303.0,
+      "open": 298.67999267578125,
+      "dayHigh": 302.2449951171875,
+      "dayLow": 298.29998779296875,
+      "volume": 8185500.0,
+      "avgVolume": 4129117.0,
+      "marketCap": 299286944968.4256,
+      "bid": 300.1,
+      "ask": 300.16,
+      "sector": "Consumer Cyclical",
+      "industry": "Home Improvement Retail",
+      "pe": 21.007004,
+      "eps": 14.28,
+      "beta": 0.955,
+      "dividendYield": 3.08,
+      "fiftyTwoWeekHigh": 418.5799865722656,
+      "fiftyTwoWeekLow": 289.1000061035156,
+      "trend": {
+        "bias": "bearish",
+        "sma20": 317.3979202270508,
+        "sma50": 329.7517376708984,
+        "sma200": 337.3461460876465,
+        "priceVsSma50Pct": -9.028527611364197
+      },
+      "liquidity": {
+        "volume": 8185500.0,
+        "avgVolume": 4129117.0,
+        "volumeRatio": 1.9823850958933835
+      },
+      "earnings": {
+        "nextDate": "2026-11-17",
+        "daysToEarnings": 60
+      },
+      "options": {
+        "iv": null,
+        "ivRank": null,
+        "ivPercentile": null,
+        "impliedMovePct": null,
+        "suggested": null
+      },
+      "markers": {
+        "available": [
+          "symbol",
+          "name",
+          "price",
+          "change",
+          "changePct",
+          "previousClose",
+          "open",
+          "dayHigh",
+          "dayLow",
+          "volume",
+          "avgVolume",
+          "marketCap",
+          "bid",
+          "ask",
+          "sector",
+          "industry",
+          "pe",
+          "eps",
+          "beta",
+          "dividendYield",
+          "fiftyTwoWeekHigh",
+          "fiftyTwoWeekLow"
+        ],
+        "missing": []
+      }
+    },
+    {
+      "symbol": "INTC",
+      "name": "Intel Corporation",
+      "price": 108.5999984741211,
+      "change": -0.9005015258789086,
+      "changePct": -0.8223720675968682,
+      "previousClose": 109.5005,
+      "open": 109.83999633789062,
+      "dayHigh": 110.48999786376953,
+      "dayLow": 106.4000015258789,
+      "volume": 174380597.0,
+      "avgVolume": 109656906.0,
+      "marketCap": 570641549791.2291,
+      "bid": 101.86,
+      "ask": 113.13,
+      "sector": "Technology",
+      "industry": "Semiconductors",
+      "pe": 52.66527,
+      "eps": -2.09,
+      "beta": 2.231,
+      "dividendYield": null,
+      "fiftyTwoWeekHigh": 142.35000610351562,
+      "fiftyTwoWeekLow": 28.729999542236328,
+      "trend": {
+        "bias": "bullish",
+        "sma20": 95.86800079345703,
+        "sma50": 97.09360000610351,
+        "sma200": 77.1558999633789,
+        "priceVsSma50Pct": 11.850831020061324
+      },
+      "liquidity": {
+        "volume": 174380597.0,
+        "avgVolume": 109656906.0,
+        "volumeRatio": 1.5902381652095856
+      },
+      "earnings": {
+        "nextDate": "2026-10-22",
+        "daysToEarnings": 34
+      },
+      "options": {
+        "iv": null,
+        "ivRank": null,
+        "ivPercentile": null,
+        "impliedMovePct": null,
+        "suggested": null
+      },
+      "markers": {
+        "available": [
+          "symbol",
+          "name",
+          "price",
+          "change",
+          "changePct",
+          "previousClose",
+          "open",
+          "dayHigh",
+          "dayLow",
+          "volume",
+          "avgVolume",
+          "marketCap",
+          "bid",
+          "ask",
+          "sector",
+          "industry",
+          "pe",
+          "eps",
+          "beta",
+          "fiftyTwoWeekHigh",
+          "fiftyTwoWeekLow"
+        ],
+        "missing": [
+          "dividendYield"
+        ]
+      }
+    },
+    {
+      "symbol": "UBER",
+      "name": "Uber Technologies, Inc.",
+      "price": 70.5,
+      "change": -0.5400000000000063,
+      "changePct": -0.7601351351351439,
+      "previousClose": 71.04,
+      "open": 70.8949966430664,
+      "dayHigh": 71.0,
+      "dayLow": 70.05999755859375,
+      "volume": 20571745.0,
+      "avgVolume": 19458198.0,
+      "marketCap": 144000488530.5,
+      "bid": 70.56,
+      "ask": 70.6,
+      "sector": "Technology",
+      "industry": "Software - Application",
+      "pe": 15.460526,
+      "eps": 4.56,
+      "beta": 1.159,
+      "dividendYield": null,
+      "fiftyTwoWeekHigh": 101.98999786376953,
+      "fiftyTwoWeekLow": 65.41000366210938,
+      "trend": {
+        "bias": "bearish",
+        "sma20": 74.82999954223632,
+        "sma50": 73.67339996337891,
+        "sma200": 75.67215003967286,
+        "priceVsSma50Pct": -4.307389050805752
+      },
+      "liquidity": {
+        "volume": 20571745.0,
+        "avgVolume": 19458198.0,
+        "volumeRatio": 1.0572276528381508
+      },
+      "earnings": {
+        "nextDate": "2026-11-03",
+        "daysToEarnings": 46
+      },
+      "options": {
+        "iv": null,
+        "ivRank": null,
+        "ivPercentile": null,
+        "impliedMovePct": null,
+        "suggested": null
+      },
+      "markers": {
+        "available": [
+          "symbol",
+          "name",
+          "price",
+          "change",
+          "changePct",
+          "previousClose",
+          "open",
+          "dayHigh",
+          "dayLow",
+          "volume",
+          "avgVolume",
+          "marketCap",
+          "bid",
+          "ask",
+          "sector",
+          "industry",
+          "pe",
+          "eps",
+          "beta",
+          "fiftyTwoWeekHigh",
+          "fiftyTwoWeekLow"
+        ],
+        "missing": [
+          "dividendYield"
+        ]
+      }
+    },
+    {
+      "symbol": "VST",
+      "name": "Vistra Corp.",
+      "price": 140.6699981689453,
+      "change": -3.030001831054676,
+      "changePct": -2.108560773176532,
+      "previousClose": 143.7,
+      "open": 143.39500427246094,
+      "dayHigh": 144.44000244140625,
+      "dayLow": 140.2100067138672,
+      "volume": 5029135.0,
+      "avgVolume": 4416601.0,
+      "marketCap": 47213802266.0836,
+      "bid": 141.0,
+      "ask": 140.67,
+      "sector": "Utilities",
+      "industry": "Utilities - Independent Power Producers",
+      "pe": 23.721754,
+      "eps": 5.93,
+      "beta": 1.414,
+      "dividendYield": 0.64,
+      "fiftyTwoWeekHigh": 219.82000732421875,
+      "fiftyTwoWeekLow": 132.66000366210938,
+      "trend": {
+        "bias": "bearish",
+        "sma20": 142.26950073242188,
+        "sma50": 147.45559997558593,
+        "sma200": 156.18122299194337,
+        "priceVsSma50Pct": -4.60179322302042
+      },
+      "liquidity": {
+        "volume": 5029135.0,
+        "avgVolume": 4416601.0,
+        "volumeRatio": 1.1386890054138918
+      },
+      "earnings": {
+        "nextDate": "2026-11-05",
+        "daysToEarnings": 48
+      },
+      "options": {
+        "iv": null,
+        "ivRank": null,
+        "ivPercentile": null,
+        "impliedMovePct": null,
+        "suggested": null
+      },
+      "markers": {
+        "available": [
+          "symbol",
+          "name",
+          "price",
+          "change",
+          "changePct",
+          "previousClose",
+          "open",
+          "dayHigh",
+          "dayLow",
+          "volume",
+          "avgVolume",
+          "marketCap",
+          "bid",
+          "ask",
+          "sector",
+          "industry",
+          "pe",
+          "eps",
+          "beta",
+          "dividendYield",
+          "fiftyTwoWeekHigh",
+          "fiftyTwoWeekLow"
+        ],
+        "missing": []
+      }
+    },
+    {
+      "symbol": "TEM",
+      "name": "Tempus AI, Inc.",
+      "price": 77.83999633789062,
+      "change": -2.184803662109374,
+      "changePct": -2.730158228585856,
+      "previousClose": 80.0248,
+      "open": 81.4000015258789,
+      "dayHigh": 81.83000183105469,
+      "dayLow": 75.98999786376953,
+      "volume": 9303776.0,
+      "avgVolume": 6477644.0,
+      "marketCap": 14045040746.268188,
+      "bid": 71.49,
+      "ask": 82.84,
+      "sector": "Healthcare",
+      "industry": "Health Information Services",
+      "pe": 19459.998,
+      "eps": -1.44,
+      "beta": 3.724,
+      "dividendYield": null,
+      "fiftyTwoWeekHigh": 104.31999969482422,
+      "fiftyTwoWeekLow": 40.77000045776367,
+      "trend": {
+        "bias": "bullish",
+        "sma20": 66.49450054168702,
+        "sma50": 57.064400100708006,
+        "sma200": 56.15379989624024,
+        "priceVsSma50Pct": 36.40728054709692
+      },
+      "liquidity": {
+        "volume": 9303776.0,
+        "avgVolume": 6477644.0,
+        "volumeRatio": 1.4362901079466546
+      },
+      "earnings": {
+        "nextDate": "2026-11-03",
+        "daysToEarnings": 46
+      },
+      "options": {
+        "iv": null,
+        "ivRank": null,
+        "ivPercentile": null,
+        "impliedMovePct": null,
+        "suggested": null
+      },
+      "markers": {
+        "available": [
+          "symbol",
+          "name",
+          "price",
+          "change",
+          "changePct",
+          "previousClose",
+          "open",
+          "dayHigh",
+          "dayLow",
+          "volume",
+          "avgVolume",
+          "marketCap",
+          "bid",
+          "ask",
+          "sector",
+          "industry",
+          "pe",
+          "eps",
+          "beta",
+          "fiftyTwoWeekHigh",
+          "fiftyTwoWeekLow"
+        ],
+        "missing": [
+          "dividendYield"
+        ]
+      }
+    },
+    {
+      "symbol": "BE",
+      "name": "Bloom Energy Corporation",
+      "price": 265.6300048828125,
+      "change": -13.8699951171875,
+      "changePct": -4.962431168940071,
+      "previousClose": 279.5,
+      "open": 284.32000732421875,
+      "dayHigh": 285.1000061035156,
+      "dayLow": 265.0,
+      "volume": 73325656.0,
+      "avgVolume": 15304846.0,
+      "marketCap": 78235300356.1018,
+      "bid": 265.86,
+      "ask": 267.4,
+      "sector": "Industrials",
+      "industry": "Electrical Equipment & Parts",
+      "pe": 349.51318,
+      "eps": 0.76,
+      "beta": 3.811,
+      "dividendYield": null,
+      "fiftyTwoWeekHigh": 351.2799987792969,
+      "fiftyTwoWeekLow": 61.369998931884766,
+      "trend": {
+        "bias": "bullish",
+        "sma20": 240.44550018310548,
+        "sma50": 225.42820037841796,
+        "sma200": 198.83915069580078,
+        "priceVsSma50Pct": 17.833529450578617
+      },
+      "liquidity": {
+        "volume": 73325656.0,
+        "avgVolume": 15304846.0,
+        "volumeRatio": 4.791009069937718
+      },
+      "earnings": {
+        "nextDate": "2026-10-27",
+        "daysToEarnings": 39
+      },
+      "options": {
+        "iv": null,
+        "ivRank": null,
+        "ivPercentile": null,
+        "impliedMovePct": null,
+        "suggested": null
+      },
+      "markers": {
+        "available": [
+          "symbol",
+          "name",
+          "price",
+          "change",
+          "changePct",
+          "previousClose",
+          "open",
+          "dayHigh",
+          "dayLow",
+          "volume",
+          "avgVolume",
+          "marketCap",
+          "bid",
+          "ask",
+          "sector",
+          "industry",
+          "pe",
+          "eps",
+          "beta",
+          "fiftyTwoWeekHigh",
+          "fiftyTwoWeekLow"
+        ],
+        "missing": [
+          "dividendYield"
+        ]
+      }
+    },
+    {
+      "symbol": "FDXF",
+      "name": "FedEx Freight Holding Company, ",
+      "price": 120.12999725341797,
+      "change": -2.8700027465820312,
+      "changePct": -2.3333355663268547,
+      "previousClose": 123.0,
+      "open": 122.19999694824219,
+      "dayHigh": 123.9000015258789,
+      "dayLow": 120.01000213623047,
+      "volume": 6265811.0,
+      "avgVolume": 1432971.0,
+      "marketCap": 17961612906.626183,
+      "bid": 120.32,
+      "ask": 120.6,
+      "sector": "Industrials",
+      "industry": "Integrated Freight & Logistics",
+      "pe": 27.426939,
+      "eps": 4.38,
+      "beta": null,
+      "dividendYield": null,
+      "fiftyTwoWeekHigh": 200.0,
+      "fiftyTwoWeekLow": 120.23999786376953,
+      "trend": {
+        "bias": "bearish",
+        "sma20": 128.33300132751464,
+        "sma50": 138.80180038452147,
+        "sma200": null,
+        "priceVsSma50Pct": -13.452133242780109
+      },
+      "liquidity": {
+        "volume": 6265811.0,
+        "avgVolume": 1432971.0,
+        "volumeRatio": 4.372601399470052
+      },
+      "earnings": {
+        "nextDate": "2026-10-28",
+        "daysToEarnings": 40
+      },
+      "options": {
+        "iv": null,
+        "ivRank": null,
+        "ivPercentile": null,
+        "impliedMovePct": null,
+        "suggested": null
+      },
+      "markers": {
+        "available": [
+          "symbol",
+          "name",
+          "price",
+          "change",
+          "changePct",
+          "previousClose",
+          "open",
+          "dayHigh",
+          "dayLow",
+          "volume",
+          "avgVolume",
+          "marketCap",
+          "bid",
+          "ask",
+          "sector",
+          "industry",
+          "pe",
+          "eps",
+          "fiftyTwoWeekHigh",
+          "fiftyTwoWeekLow"
+        ],
+        "missing": [
+          "beta",
+          "dividendYield"
+        ]
+      }
+    },
+    {
+      "symbol": "V",
+      "name": "Visa Inc.",
+      "price": 368.2900085449219,
+      "change": -1.0799914550781295,
+      "changePct": -0.2923874313230987,
+      "previousClose": 369.37,
+      "open": 368.55999755859375,
+      "dayHigh": 370.760009765625,
+      "dayLow": 366.93170166015625,
+      "volume": 19564035.0,
+      "avgVolume": 7483096.0,
+      "marketCap": 691411184378.964,
+      "bid": 368.5,
+      "ask": 368.69,
+      "sector": "Financial Services",
+      "industry": "Credit Services",
+      "pe": 31.317177,
+      "eps": 11.76,
+      "beta": 0.761,
+      "dividendYield": 0.72,
+      "fiftyTwoWeekHigh": 385.57000732421875,
+      "fiftyTwoWeekLow": 293.8900146484375,
+      "trend": {
+        "bias": "neutral",
+        "sma20": 375.0375030517578,
+        "sma50": 366.7856781005859,
+        "sma200": 334.88454193115234,
+        "priceVsSma50Pct": 0.4101388178857428
+      },
+      "liquidity": {
+        "volume": 19564035.0,
+        "avgVolume": 7483096.0,
+        "volumeRatio": 2.614430577931915
+      },
+      "earnings": {
+        "nextDate": "2026-10-27",
+        "daysToEarnings": 39
+      },
+      "options": {
+        "iv": null,
+        "ivRank": null,
+        "ivPercentile": null,
+        "impliedMovePct": null,
+        "suggested": null
+      },
+      "markers": {
+        "available": [
+          "symbol",
+          "name",
+          "price",
+          "change",
+          "changePct",
+          "previousClose",
+          "open",
+          "dayHigh",
+          "dayLow",
+          "volume",
+          "avgVolume",
+          "marketCap",
+          "bid",
+          "ask",
+          "sector",
+          "industry",
+          "pe",
+          "eps",
+          "beta",
+          "dividendYield",
+          "fiftyTwoWeekHigh",
+          "fiftyTwoWeekLow"
+        ],
+        "missing": []
+      }
+    },
+    {
+      "symbol": "MA",
+      "name": "Mastercard Incorporated",
+      "price": 565.239990234375,
+      "change": -0.0242097656249598,
+      "changePct": -0.004282911534988383,
+      "previousClose": 565.2642,
+      "open": 564.9500122070312,
+      "dayHigh": 568.4299926757812,
+      "dayLow": 561.9000244140625,
+      "volume": 5439764.0,
+      "avgVolume": 3137209.0,
+      "marketCap": 495155849930.8154,
+      "bid": 564.54,
+      "ask": 564.88,
+      "sector": "Financial Services",
+      "industry": "Credit Services",
+      "pe": 31.125551,
+      "eps": 18.16,
+      "beta": 0.735,
+      "dividendYield": 0.62,
+      "fiftyTwoWeekHigh": 601.22998046875,
+      "fiftyTwoWeekLow": 464.5199890136719,
+      "trend": {
+        "bias": "neutral",
+        "sma20": 580.4094970703125,
+        "sma50": 566.263193359375,
+        "sma200": 530.5414738464356,
+        "priceVsSma50Pct": -0.18069391353688785
+      },
+      "liquidity": {
+        "volume": 5439764.0,
+        "avgVolume": 3137209.0,
+        "volumeRatio": 1.733950144858057
+      },
+      "earnings": {
+        "nextDate": "2026-10-29",
+        "daysToEarnings": 41
+      },
+      "options": {
+        "iv": null,
+        "ivRank": null,
+        "ivPercentile": null,
+        "impliedMovePct": null,
+        "suggested": null
+      },
+      "markers": {
+        "available": [
+          "symbol",
+          "name",
+          "price",
+          "change",
+          "changePct",
+          "previousClose",
+          "open",
+          "dayHigh",
+          "dayLow",
+          "volume",
+          "avgVolume",
+          "marketCap",
+          "bid",
+          "ask",
+          "sector",
+          "industry",
+          "pe",
+          "eps",
+          "beta",
+          "dividendYield",
+          "fiftyTwoWeekHigh",
+          "fiftyTwoWeekLow"
+        ],
+        "missing": []
+      }
+    },
+    {
+      "symbol": "SPGI",
+      "name": "S&P Global Inc.",
+      "price": 405.32000732421875,
+      "change": -0.17999267578125,
+      "changePct": -0.04438783619759556,
+      "previousClose": 405.5,
+      "open": 401.3999938964844,
+      "dayHigh": 408.0799865722656,
+      "dayLow": 400.8299865722656,
+      "volume": 2393421.0,
+      "avgVolume": 2161489.0,
+      "marketCap": 119488338159.17969,
+      "bid": 406.83,
+      "ask": 407.57,
+      "sector": "Financial Services",
+      "industry": "Financial Data & Stock Exchanges",
+      "pe": 24.639513,
+      "eps": 16.45,
+      "beta": 1.077,
+      "dividendYield": 0.96,
+      "fiftyTwoWeekHigh": 522.46923828125,
+      "fiftyTwoWeekLow": 361.0312194824219,
+      "trend": {
+        "bias": "bearish",
+        "sma20": 426.47291870117186,
+        "sma50": 424.7499096679687,
+        "sma200": 425.8860110473633,
+        "priceVsSma50Pct": -4.57443354347939
+      },
+      "liquidity": {
+        "volume": 2393421.0,
+        "avgVolume": 2161489.0,
+        "volumeRatio": 1.1073019571230758
+      },
+      "earnings": {
+        "nextDate": "2026-10-29",
+        "daysToEarnings": 41
+      },
+      "options": {
+        "iv": null,
+        "ivRank": null,
+        "ivPercentile": null,
+        "impliedMovePct": null,
+        "suggested": null
+      },
+      "markers": {
+        "available": [
+          "symbol",
+          "name",
+          "price",
+          "change",
+          "changePct",
+          "previousClose",
+          "open",
+          "dayHigh",
+          "dayLow",
+          "volume",
+          "avgVolume",
+          "marketCap",
+          "bid",
+          "ask",
+          "sector",
+          "industry",
+          "pe",
+          "eps",
+          "beta",
+          "dividendYield",
+          "fiftyTwoWeekHigh",
+          "fiftyTwoWeekLow"
+        ],
+        "missing": []
+      }
+    },
+    {
+      "symbol": "AVGO",
+      "name": "Broadcom Inc.",
+      "price": 357.6099853515625,
+      "change": 9.56998535156248,
+      "changePct": 2.7496797355368576,
+      "previousClose": 348.04,
+      "open": 352.0799865722656,
+      "dayHigh": 363.2817077636719,
+      "dayLow": 351.3500061035156,
+      "volume": 43901731.0,
+      "avgVolume": 23425731.0,
+      "marketCap": 1707097706096.4312,
+      "bid": 357.46,
+      "ask": 355.56,
+      "sector": "Technology",
+      "industry": "Semiconductors",
+      "pe": 45.555412,
+      "eps": 7.85,
+      "beta": 1.457,
+      "dividendYield": 0.75,
+      "fiftyTwoWeekHigh": 495.0,
+      "fiftyTwoWeekLow": 289.9599914550781,
+      "trend": {
+        "bias": "bearish",
+        "sma20": 359.31799774169923,
+        "sma50": 379.75519897460936,
+        "sma200": 368.3861036682129,
+        "priceVsSma50Pct": -5.8314444891977635
+      },
+      "liquidity": {
+        "volume": 43901731.0,
+        "avgVolume": 23425731.0,
+        "volumeRatio": 1.8740815814883216
+      },
+      "earnings": {
+        "nextDate": "2026-12-09",
+        "daysToEarnings": 82
+      },
+      "options": {
+        "iv": null,
+        "ivRank": null,
+        "ivPercentile": null,
+        "impliedMovePct": null,
+        "suggested": null
+      },
+      "markers": {
+        "available": [
+          "symbol",
+          "name",
+          "price",
+          "change",
+          "changePct",
+          "previousClose",
+          "open",
+          "dayHigh",
+          "dayLow",
+          "volume",
+          "avgVolume",
+          "marketCap",
+          "bid",
+          "ask",
+          "sector",
+          "industry",
+          "pe",
+          "eps",
+          "beta",
+          "dividendYield",
+          "fiftyTwoWeekHigh",
+          "fiftyTwoWeekLow"
+        ],
+        "missing": []
+      }
+    },
+    {
+      "symbol": "SPY",
+      "name": "State Street SPDR S&P 500 ETF T",
+      "price": 761.6900024414062,
+      "change": -0.3884975585937127,
+      "changePct": -0.05097867983333905,
+      "previousClose": 762.0785,
+      "open": 761.3099975585938,
+      "dayHigh": 762.0,
+      "dayLow": 757.9710083007812,
+      "volume": 65045285.0,
+      "avgVolume": 46070941.0,
+      "marketCap": null,
+      "bid": 761.61,
+      "ask": 761.63,
+      "sector": null,
+      "industry": null,
+      "pe": 24.609966,
+      "eps": 30.95047,
+      "beta": null,
+      "dividendYield": 0.98,
+      "fiftyTwoWeekHigh": 779.3699951171875,
+      "fiftyTwoWeekLow": 629.280029296875,
+      "trend": {
+        "bias": "neutral",
+        "sma20": 764.3034942626953,
+        "sma50": 759.7309985351562,
+        "sma200": 714.2445812988282,
+        "priceVsSma50Pct": 0.25785493944925114
+      },
+      "liquidity": {
+        "volume": 65045285.0,
+        "avgVolume": 46070941.0,
+        "volumeRatio": 1.411850584948981
+      },
+      "earnings": {
+        "nextDate": null,
+        "daysToEarnings": null
+      },
+      "options": {
+        "iv": null,
+        "ivRank": null,
+        "ivPercentile": null,
+        "impliedMovePct": null,
+        "suggested": null
+      },
+      "markers": {
+        "available": [
+          "symbol",
+          "name",
+          "price",
+          "change",
+          "changePct",
+          "previousClose",
+          "open",
+          "dayHigh",
+          "dayLow",
+          "volume",
+          "avgVolume",
+          "bid",
+          "ask",
+          "pe",
+          "eps",
+          "dividendYield",
+          "fiftyTwoWeekHigh",
+          "fiftyTwoWeekLow"
+        ],
+        "missing": [
+          "marketCap",
+          "sector",
+          "industry",
+          "beta"
+        ]
+      }
+    },
+    {
+      "symbol": "QQQ",
+      "name": "Invesco QQQ Trust, Series 1",
+      "price": 721.4500122070312,
+      "change": 5.653412207031238,
+      "changePct": 0.7898070774618429,
+      "previousClose": 715.7966,
+      "open": 718.8400268554688,
+      "dayHigh": 721.7249755859375,
+      "dayLow": 715.0800170898438,
+      "volume": 47864537.0,
+      "avgVolume": 37213090.0,
+      "marketCap": null,
+      "bid": 717.24,
+      "ask": 717.49,
+      "sector": null,
+      "industry": null,
+      "pe": 29.405296,
+      "eps": 24.534697,
+      "beta": null,
+      "dividendYield": 0.42,
+      "fiftyTwoWeekHigh": 748.6500244140625,
+      "fiftyTwoWeekLow": 555.5999755859375,
+      "trend": {
+        "bias": "bullish",
+        "sma20": 713.2354949951172,
+        "sma50": 709.9511975097656,
+        "sma200": 661.7729598999024,
+        "priceVsSma50Pct": 1.619662694787899
+      },
+      "liquidity": {
+        "volume": 47864537.0,
+        "avgVolume": 37213090.0,
+        "volumeRatio": 1.2862285018524395
+      },
+      "earnings": {
+        "nextDate": null,
+        "daysToEarnings": null
+      },
+      "options": {
+        "iv": null,
+        "ivRank": null,
+        "ivPercentile": null,
+        "impliedMovePct": null,
+        "suggested": null
+      },
+      "markers": {
+        "available": [
+          "symbol",
+          "name",
+          "price",
+          "change",
+          "changePct",
+          "previousClose",
+          "open",
+          "dayHigh",
+          "dayLow",
+          "volume",
+          "avgVolume",
+          "bid",
+          "ask",
+          "pe",
+          "eps",
+          "dividendYield",
+          "fiftyTwoWeekHigh",
+          "fiftyTwoWeekLow"
+        ],
+        "missing": [
+          "marketCap",
+          "sector",
+          "industry",
+          "beta"
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,39 @@
+:8080 {
+	handle /api/scan* {
+		reverse_proxy 127.0.0.1:8502
+	}
+	handle /scan-latest.json {
+		reverse_proxy 127.0.0.1:8502
+	}
+
+	# Serve Streamlit hashed assets from disk — missing chunks must 404 as JS, not SPA HTML
+	handle /static/* {
+		root * /workspace/stock-data-scanner/.venv/lib/python3.13/site-packages/streamlit/static
+		@exists file
+		handle @exists {
+			header Cache-Control "public, max-age=31536000, immutable"
+			file_server
+		}
+		handle {
+			header Content-Type "application/javascript; charset=utf-8"
+			header Cache-Control "no-cache"
+			respond 404 {
+				body "/* static asset not found */"
+			}
+		}
+	}
+
+	handle {
+		header Cache-Control "no-cache"
+		reverse_proxy 127.0.0.1:8501 {
+			flush_interval -1
+			transport http {
+				versions 1.1
+				read_timeout 0
+				write_timeout 0
+			}
+			header_up Host {host}
+			header_up X-Real-IP {remote_host}
+		}
+	}
+}

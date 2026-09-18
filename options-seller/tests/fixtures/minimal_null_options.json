@@ -1,0 +1,67 @@
+{
+  "schema": "stock-data-scanner.scan/v0.1",
+  "asOf": "2026-09-18T20:00:00Z",
+  "source": "fixture",
+  "universe": [
+    "XYZ"
+  ],
+  "results": [
+    {
+      "symbol": "XYZ",
+      "name": "Example Corp",
+      "price": 100.0,
+      "change": 0.0,
+      "changePct": 0.0,
+      "previousClose": 100.0,
+      "open": 100.0,
+      "dayHigh": 101.0,
+      "dayLow": 99.0,
+      "volume": 1000000,
+      "avgVolume": 1000000,
+      "marketCap": 1000000000.0,
+      "bid": 99.9,
+      "ask": 100.1,
+      "sector": null,
+      "industry": null,
+      "pe": null,
+      "eps": null,
+      "beta": null,
+      "dividendYield": null,
+      "fiftyTwoWeekHigh": 120.0,
+      "fiftyTwoWeekLow": 80.0,
+      "trend": {
+        "bias": "neutral",
+        "sma20": 100.0,
+        "sma50": 100.0,
+        "sma200": 95.0,
+        "priceVsSma50Pct": 0.0
+      },
+      "liquidity": {
+        "volume": 1000000,
+        "avgVolume": 1000000,
+        "volumeRatio": 1.0
+      },
+      "earnings": {
+        "nextDate": null,
+        "daysToEarnings": null
+      },
+      "options": {
+        "iv": null,
+        "ivRank": null,
+        "ivPercentile": null,
+        "impliedMovePct": null,
+        "suggested": null
+      },
+      "markers": {
+        "available": [
+          "symbol",
+          "price"
+        ],
+        "missing": [
+          "pe",
+          "eps"
+        ]
+      }
+    }
+  ]
+}

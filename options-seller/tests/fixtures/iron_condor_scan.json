@@ -1,0 +1,114 @@
+{
+  "schema": "stock-data-scanner.scan/v0.1",
+  "asOf": "2026-09-18T20:00:00Z",
+  "source": "fixture",
+  "universe": [
+    "IWM"
+  ],
+  "results": [
+    {
+      "symbol": "IWM",
+      "name": "iShares Russell 2000 ETF",
+      "price": 220.0,
+      "change": 0.0,
+      "changePct": 0.0,
+      "previousClose": 220.0,
+      "open": 220.0,
+      "dayHigh": 221.0,
+      "dayLow": 219.0,
+      "volume": 30000000,
+      "avgVolume": 28000000,
+      "marketCap": null,
+      "bid": 219.95,
+      "ask": 220.05,
+      "sector": null,
+      "industry": null,
+      "pe": null,
+      "eps": null,
+      "beta": null,
+      "dividendYield": null,
+      "fiftyTwoWeekHigh": 240.0,
+      "fiftyTwoWeekLow": 180.0,
+      "trend": {
+        "bias": "neutral",
+        "sma20": 220.0,
+        "sma50": 219.5,
+        "sma200": 210.0,
+        "priceVsSma50Pct": 0.2
+      },
+      "liquidity": {
+        "volume": 30000000,
+        "avgVolume": 28000000,
+        "volumeRatio": 1.07
+      },
+      "earnings": {
+        "nextDate": null,
+        "daysToEarnings": null
+      },
+      "options": {
+        "iv": 0.22,
+        "ivRank": 50.0,
+        "ivPercentile": 55.0,
+        "impliedMovePct": 2.0,
+        "suggested": [
+          {
+            "strike": 210.0,
+            "dte": 30,
+            "delta": -0.16,
+            "premium": 2.4,
+            "bid": 2.3,
+            "ask": 2.5,
+            "mid": 2.4,
+            "openInterest": 2000,
+            "right": "put",
+            "side": "sell"
+          },
+          {
+            "strike": 205.0,
+            "dte": 30,
+            "delta": -0.08,
+            "premium": 1.0,
+            "bid": 0.95,
+            "ask": 1.05,
+            "mid": 1.0,
+            "openInterest": 1500,
+            "right": "put",
+            "side": "buy"
+          },
+          {
+            "strike": 230.0,
+            "dte": 30,
+            "delta": 0.16,
+            "premium": 2.3,
+            "bid": 2.2,
+            "ask": 2.4,
+            "mid": 2.3,
+            "openInterest": 1800,
+            "right": "call",
+            "side": "sell"
+          },
+          {
+            "strike": 235.0,
+            "dte": 30,
+            "delta": 0.08,
+            "premium": 0.95,
+            "bid": 0.9,
+            "ask": 1.0,
+            "mid": 0.95,
+            "openInterest": 1400,
+            "right": "call",
+            "side": "buy"
+          }
+        ]
+      },
+      "markers": {
+        "available": [
+          "symbol",
+          "name",
+          "price"
+        ],
+        "missing": []
+      }
+    }
+  ]
+}

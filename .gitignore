@@ -1,0 +1,10 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+node_modules/
+.streamlit/secrets.toml
+*.sqlite3
+data/paper_portfolio.json
+.env
+*.log

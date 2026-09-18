@@ -1,0 +1,400 @@
+{
+  "schema": "stock-data-scanner.scan/v0.1",
+  "asOf": "2026-09-18T20:00:00Z",
+  "source": "yahoo_finance",
+  "universe": [
+    "AAPL",
+    "MSFT",
+    "NVDA",
+    "SPY",
+    "TSLA",
+    "META"
+  ],
+  "results": [
+    {
+      "symbol": "AAPL",
+      "name": "Apple Inc.",
+      "price": 178.5,
+      "change": 1.2,
+      "changePct": 0.68,
+      "previousClose": 177.3,
+      "open": 177.0,
+      "dayHigh": 179.0,
+      "dayLow": 176.5,
+      "volume": 55000000,
+      "avgVolume": 50000000,
+      "marketCap": 2800000000000.0,
+      "bid": 178.45,
+      "ask": 178.55,
+      "sector": "Technology",
+      "industry": "Consumer Electronics",
+      "pe": 28.0,
+      "eps": 6.4,
+      "beta": 1.2,
+      "dividendYield": 0.005,
+      "fiftyTwoWeekHigh": 199.0,
+      "fiftyTwoWeekLow": 150.0,
+      "trend": {
+        "bias": "bullish",
+        "sma20": 175.0,
+        "sma50": 170.0,
+        "sma200": 165.0,
+        "priceVsSma50Pct": 5.0
+      },
+      "liquidity": {
+        "volume": 55000000,
+        "avgVolume": 50000000,
+        "volumeRatio": 1.1
+      },
+      "earnings": {
+        "nextDate": "2026-10-25",
+        "daysToEarnings": 37
+      },
+      "options": {
+        "iv": null,
+        "ivRank": null,
+        "ivPercentile": null,
+        "impliedMovePct": null,
+        "suggested": null
+      },
+      "markers": {
+        "available": [
+          "symbol",
+          "name",
+          "price",
+          "volume",
+          "avgVolume"
+        ],
+        "missing": []
+      }
+    },
+    {
+      "symbol": "MSFT",
+      "name": "Microsoft Corporation",
+      "price": 420.0,
+      "change": -1.0,
+      "changePct": -0.24,
+      "previousClose": 421.0,
+      "open": 421.5,
+      "dayHigh": 422.0,
+      "dayLow": 419.0,
+      "volume": 20000000,
+      "avgVolume": 22000000,
+      "marketCap": 3100000000000.0,
+      "bid": 419.9,
+      "ask": 420.1,
+      "sector": "Technology",
+      "industry": "Software",
+      "pe": 35.0,
+      "eps": 12.0,
+      "beta": 0.9,
+      "dividendYield": 0.007,
+      "fiftyTwoWeekHigh": 450.0,
+      "fiftyTwoWeekLow": 350.0,
+      "trend": {
+        "bias": "bullish",
+        "sma20": 418.0,
+        "sma50": 415.0,
+        "sma200": 400.0,
+        "priceVsSma50Pct": 1.2
+      },
+      "liquidity": {
+        "volume": 20000000,
+        "avgVolume": 22000000,
+        "volumeRatio": 0.91
+      },
+      "earnings": {
+        "nextDate": "2026-10-20",
+        "daysToEarnings": 32
+      },
+      "options": {
+        "iv": null,
+        "ivRank": 45.0,
+        "ivPercentile": null,
+        "impliedMovePct": null,
+        "suggested": null
+      },
+      "markers": {
+        "available": [
+          "symbol",
+          "name",
+          "price"
+        ],
+        "missing": []
+      }
+    },
+    {
+      "symbol": "NVDA",
+      "name": "NVIDIA Corporation",
+      "price": 120.0,
+      "change": -2.0,
+      "changePct": -1.64,
+      "previousClose": 122.0,
+      "open": 121.0,
+      "dayHigh": 122.5,
+      "dayLow": 119.0,
+      "volume": 80000000,
+      "avgVolume": 70000000,
+      "marketCap": 3000000000000.0,
+      "bid": 119.95,
+      "ask": 120.05,
+      "sector": "Technology",
+      "industry": "Semiconductors",
+      "pe": 60.0,
+      "eps": 2.0,
+      "beta": 1.7,
+      "dividendYield": 0.0,
+      "fiftyTwoWeekHigh": 140.0,
+      "fiftyTwoWeekLow": 80.0,
+      "trend": {
+        "bias": "bearish",
+        "sma20": 125.0,
+        "sma50": 128.0,
+        "sma200": 110.0,
+        "priceVsSma50Pct": -1.5
+      },
+      "liquidity": {
+        "volume": 80000000,
+        "avgVolume": 70000000,
+        "volumeRatio": 1.14
+      },
+      "earnings": {
+        "nextDate": "2026-11-15",
+        "daysToEarnings": 58
+      },
+      "options": {
+        "iv": 0.45,
+        "ivRank": 62.0,
+        "ivPercentile": 70.0,
+        "impliedMovePct": null,
+        "suggested": null
+      },
+      "markers": {
+        "available": [
+          "symbol",
+          "name",
+          "price"
+        ],
+        "missing": []
+      }
+    },
+    {
+      "symbol": "SPY",
+      "name": "SPDR S&P 500 ETF",
+      "price": 560.0,
+      "change": 0.1,
+      "changePct": 0.02,
+      "previousClose": 559.9,
+      "open": 560.0,
+      "dayHigh": 561.0,
+      "dayLow": 558.0,
+      "volume": 40000000,
+      "avgVolume": 45000000,
+      "marketCap": null,
+      "bid": 559.95,
+      "ask": 560.05,
+      "sector": null,
+      "industry": null,
+      "pe": null,
+      "eps": null,
+      "beta": null,
+      "dividendYield": 0.013,
+      "fiftyTwoWeekHigh": 570.0,
+      "fiftyTwoWeekLow": 480.0,
+      "trend": {
+        "bias": "neutral",
+        "sma20": 559.0,
+        "sma50": 558.0,
+        "sma200": 540.0,
+        "priceVsSma50Pct": 0.3
+      },
+      "liquidity": {
+        "volume": 40000000,
+        "avgVolume": 45000000,
+        "volumeRatio": 0.89
+      },
+      "earnings": {
+        "nextDate": null,
+        "daysToEarnings": null
+      },
+      "options": {
+        "iv": 0.14,
+        "ivRank": 55.0,
+        "ivPercentile": 60.0,
+        "impliedMovePct": 1.2,
+        "suggested": null
+      },
+      "markers": {
+        "available": [
+          "symbol",
+          "name",
+          "price"
+        ],
+        "missing": []
+      }
+    },
+    {
+      "symbol": "TSLA",
+      "name": "Tesla, Inc.",
+      "price": 250.0,
+      "change": 5.0,
+      "changePct": 2.04,
+      "previousClose": 245.0,
+      "open": 246.0,
+      "dayHigh": 252.0,
+      "dayLow": 244.0,
+      "volume": 90000000,
+      "avgVolume": 85000000,
+      "marketCap": 800000000000.0,
+      "bid": 249.9,
+      "ask": 250.1,
+      "sector": "Consumer Cyclical",
+      "industry": "Auto Manufacturers",
+      "pe": 70.0,
+      "eps": 3.5,
+      "beta": 2.0,
+      "dividendYield": 0.0,
+      "fiftyTwoWeekHigh": 300.0,
+      "fiftyTwoWeekLow": 140.0,
+      "trend": {
+        "bias": "bullish",
+        "sma20": 240.0,
+        "sma50": 230.0,
+        "sma200": 200.0,
+        "priceVsSma50Pct": 8.7
+      },
+      "liquidity": {
+        "volume": 90000000,
+        "avgVolume": 85000000,
+        "volumeRatio": 1.06
+      },
+      "earnings": {
+        "nextDate": "2026-09-22",
+        "daysToEarnings": 4
+      },
+      "options": {
+        "iv": 0.55,
+        "ivRank": 80.0,
+        "ivPercentile": 90.0,
+        "impliedMovePct": 8.0,
+        "suggested": null
+      },
+      "markers": {
+        "available": [
+          "symbol",
+          "name",
+          "price"
+        ],
+        "missing": []
+      }
+    },
+    {
+      "symbol": "META",
+      "name": "Meta Platforms, Inc.",
+      "price": 500.0,
+      "change": 2.0,
+      "changePct": 0.4,
+      "previousClose": 498.0,
+      "open": 499.0,
+      "dayHigh": 502.0,
+      "dayLow": 497.0,
+      "volume": 15000000,
+      "avgVolume": 16000000,
+      "marketCap": 1300000000000.0,
+      "bid": 499.9,
+      "ask": 500.1,
+      "sector": "Technology",
+      "industry": "Internet Content",
+      "pe": 25.0,
+      "eps": 20.0,
+      "beta": 1.3,
+      "dividendYield": 0.004,
+      "fiftyTwoWeekHigh": 550.0,
+      "fiftyTwoWeekLow": 400.0,
+      "trend": {
+        "bias": "bullish",
+        "sma20": 495.0,
+        "sma50": 480.0,
+        "sma200": 450.0,
+        "priceVsSma50Pct": 4.2
+      },
+      "liquidity": {
+        "volume": 15000000,
+        "avgVolume": 16000000,
+        "volumeRatio": 0.94
+      },
+      "earnings": {
+        "nextDate": "2026-10-30",
+        "daysToEarnings": 42
+      },
+      "options": {
+        "iv": 0.28,
+        "ivRank": 40.0,
+        "ivPercentile": 55.0,
+        "impliedMovePct": 3.5,
+        "suggested": [
+          {
+            "strike": 475.0,
+            "dte": 35,
+            "delta": -0.22,
+            "premium": 8.5,
+            "bid": 8.3,
+            "ask": 8.7,
+            "mid": 8.5,
+            "openInterest": 1200,
+            "right": "put",
+            "expiration": "2026-10-23",
+            "side": "sell"
+          },
+          {
+            "strike": 450.0,
+            "dte": 35,
+            "delta": -0.1,
+            "premium": 3.2,
+            "bid": 3.1,
+            "ask": 3.3,
+            "mid": 3.2,
+            "openInterest": 900,
+            "right": "put",
+            "expiration": "2026-10-23",
+            "side": "buy"
+          },
+          {
+            "strike": 525.0,
+            "dte": 35,
+            "delta": 0.22,
+            "premium": 7.8,
+            "bid": 7.6,
+            "ask": 8.0,
+            "mid": 7.8,
+            "openInterest": 1100,
+            "right": "call",
+            "expiration": "2026-10-23",
+            "side": "sell"
+          },
+          {
+            "strike": 550.0,
+            "dte": 35,
+            "delta": 0.1,
+            "premium": 3.0,
+            "bid": 2.9,
+            "ask": 3.1,
+            "mid": 3.0,
+            "openInterest": 800,
+            "right": "call",
+            "expiration": "2026-10-23",
+            "side": "buy"
+          }
+        ]
+      },
+      "markers": {
+        "available": [
+          "symbol",
+          "name",
+          "price"
+        ],
+        "missing": []
+      }
+    }
+  ]
+}

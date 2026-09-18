@@ -1,0 +1,26 @@
+{
+  "cash_available": 75000.0,
+  "prefer_defined_risk": false,
+  "positions": [
+    {
+      "symbol": "AAPL",
+      "shares_owned": 100,
+      "has_shares": true
+    },
+    {
+      "symbol": "META",
+      "shares_owned": 0,
+      "cash_available": 60000.0
+    },
+    {
+      "symbol": "MSFT",
+      "shares_owned": 0,
+      "prefer_defined_risk": true
+    },
+    {
+      "symbol": "XYZ",
+      "shares_owned": 100,
+      "wheel_state": "assigned"
+    }
+  ]
+}
