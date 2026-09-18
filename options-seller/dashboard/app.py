@@ -351,6 +351,53 @@ def _pnl_class(v: Any) -> str:
         return ""
 
 
+_STRAT_DISPLAY = {
+    "cash_secured_put": "Cash-Secured Put",
+    "bull_put_spread": "Bull Put Spread",
+    "bear_call_spread": "Bear Call Spread",
+    "bull_call_spread": "Bull Call Spread",
+    "iron_condor": "Iron Condor",
+    "iron_butterfly": "Iron Butterfly",
+    "covered_call": "Covered Call",
+    "jade_lizard": "Jade Lizard",
+    "strangle": "Strangle",
+    "straddle": "Straddle",
+}
+
+
+def _strat_name(s: Any) -> str:
+    """Plain-English strategy name (Cash-Secured Put, not cash_secured_put)."""
+    if not s:
+        return "—"
+    key = str(s)
+    return _STRAT_DISPLAY.get(key, key.replace("_", " ").title())
+
+
+def _plan_legs_summary(plan: Any) -> str:
+    """Compact 'SP 210 / LP 200' style summary of an OrderPlan's legs."""
+    try:
+        legs = plan.legs or []
+    except Exception:
+        return "—"
+    parts = []
+    for leg in legs:
+        side_raw = getattr(leg, "side", "")
+        side = str(getattr(side_raw, "value", side_raw) or "")
+        ot = str(getattr(leg, "option_type", "") or "")
+        k = getattr(leg, "strike", None)
+        qty = int(getattr(leg, "quantity", 1) or 1)
+        code = f"{side[:1].upper()}{ot[:1].upper()}".strip()
+        k_s = f"{k:g}" if k is not None else "?"
+        q = f"×{qty}" if qty != 1 else ""
+        parts.append(f"{code} {k_s}{q}".strip())
+    return " / ".join(parts) if parts else "—"
+
+
+def _round_slippage() -> None:
+    # Keep float artifacts (0.01999999955…) out of the spinbutton display
+    st.session_state["slippage"] = round(float(st.session_state.get("slippage", 0.02)), 2)
+
+
 def _metric_card(label: str, value: str, css_class: str = "", hint: str = "") -> str:
     hint_html = (
         f'<div style="color:#8b9bb4;font-size:0.65rem;margin-top:0.15rem">{hint}</div>'
@@ -429,7 +476,7 @@ def _format_ts_pt(iso: str | None) -> str:
 
 def get_executor() -> PaperExecutor:
     store = Path(st.session_state.get("portfolio_path", str(DEFAULT_PAPER_PATH)))
-    slip = float(st.session_state.get("slippage", 0.02))
+    slip = round(float(st.session_state.get("slippage", 0.02)), 4)
     return PaperExecutor(store_path=store, slippage=slip)
 
 
@@ -450,7 +497,6 @@ _ensure_session()
 # ── Sidebar ──────────────────────────────────────────────────────────────
 with st.sidebar:
     st.markdown("### ⚙️ Controls")
-    st.caption("PAPER / DRY-RUN ONLY")
 
     ui_url = scanner_ui_url()
     if ui_url:
@@ -483,11 +529,6 @@ with st.sidebar:
         # Do NOT clear all Streamlit caches — that forced a heavy cold rerun (~60s settle)
         st.rerun()
 
-    st.text_input(
-        "Paper portfolio path",
-        key="portfolio_path",
-        help="JSON file holding the paper book. Changing it switches which book you see — the old one is untouched.",
-    )
     st.number_input(
         "Slippage (fraction)",
         min_value=0.0,
@@ -495,33 +536,55 @@ with st.sidebar:
         step=0.01,
         key="slippage",
         format="%.2f",
+        on_change=_round_slippage,
         help="Estimated cost per fill, as a fraction of premium (0.02 = 2%). Applies to new paper fills.",
     )
-    st.text_input(
-        "Capital context JSON",
-        key="capital_ctx_path",
-        help="Your cash/positions context used by the strategy selector (read-only).",
-    )
+
+    with st.expander("Advanced: data files"):
+        st.caption(
+            "These switch which book and settings the dashboard reads. "
+            "Editing a path never modifies the files themselves."
+        )
+        st.text_input(
+            "Paper portfolio path",
+            key="portfolio_path",
+            help="JSON file holding the paper book. Changing it switches which book you see — the old one is untouched.",
+        )
+        st.text_input(
+            "Capital context JSON",
+            key="capital_ctx_path",
+            help="Your cash/positions context used by the strategy selector (read-only).",
+        )
 
     st.divider()
     st.markdown("**Open paths (paper)**")
     st.caption(
-        "• **Candidates → Open this trade** — opens one selected row.\n"
-        "• **Bulk scan → paper open** — walks all scan candidates (dry-run)."
+        "Candidates tab → **Open this trade** opens one row. "
+        "**Bulk scan** below walks every candidate at once (asks first)."
     )
     if st.button("🌱 Seed demo book", use_container_width=True, type="primary"):
         ex = get_executor()
         seeded = seed_demo_book(ex, reset=True)
         _set_last_action(
             "ok",
-            f"Demo book seeded — {len(seeded)} open + closed winner",
+            f"Demo book seeded: {len(seeded)} open positions + 1 closed winner",
             position_id=seeded[0]["id"] if seeded else None,
         )
         if seeded:
             st.session_state["focus_position_id"] = seeded[0]["id"]
         st.rerun()
 
-    if st.button("▶ Bulk scan → paper open (all candidates)", use_container_width=True):
+    _bulk_armed = bool(st.session_state.get("bulk_armed"))
+    _bulk_label = (
+        "⚠ Confirm: paper-open ALL candidates"
+        if _bulk_armed
+        else "▶ Bulk scan → paper open (all candidates)"
+    )
+    if st.button(_bulk_label, use_container_width=True):
+        if not _bulk_armed:
+            st.session_state["bulk_armed"] = True
+            st.rerun()
+        st.session_state["bulk_armed"] = False
         envelope, status = load_scan_envelope()
         if envelope is None:
             _set_last_action("bad", status.get("error") or "No scan data")
@@ -556,6 +619,13 @@ with st.sidebar:
             if last_id:
                 st.session_state["focus_position_id"] = last_id
         st.rerun()
+    if _bulk_armed:
+        _n = st.session_state.get("cand_openable")
+        _n_txt = f"{_n} candidates" if _n is not None else "every candidate"
+        st.warning(
+            f"Bulk open paper-fills {_n_txt} **at once**. "
+            "Click again to confirm — or open single rows in the Candidates tab."
+        )
 
     if st.button("🗑 Reset paper book", use_container_width=True, key="reset_paper_book"):
         get_executor().reset()
@@ -566,13 +636,10 @@ with st.sidebar:
 
     st.divider()
     st.markdown("**Scanner connection**")
-    st.code(
-        f"BASE={scanner_base_url()}\n"
-        f"JSON_PATH={scanner_json_path()}\n"
-        f"UI={scanner_ui_url()}\n"
-        f"(on-box: local file primary; remote IPv4 best-effort)",
-        language="text",
-    )
+    st.caption(f"Base `{scanner_base_url()}`")
+    st.caption(f"JSON `{scanner_json_path()}`")
+    st.caption(f"UI `{ui_url}`" if ui_url else "UI offline — local file only")
+    st.caption("Local file is primary; remote is best-effort.")
 
 
 # ── Header banner ────────────────────────────────────────────────────────
@@ -607,43 +674,18 @@ st.caption(
     "Multi-leg credit strategies · Positions · Risk · Performance · Candidates from scanner"
 )
 
-# Main-page toolbar — always visible (probes fail when sidebar is collapsed)
-_tb1, _tb2, _tb3, _tb4 = st.columns([1.15, 1.15, 1.15, 2.5])
+# Main-page toolbar — slim by design: the action buttons live once, in the sidebar.
+# (They were duplicated here before; the duplication confused more than it helped.)
+_tb1, _tb2 = st.columns([1.2, 4])
 with _tb1:
-    if st.button("Refresh scan data", key="toolbar_refresh_scan", use_container_width=True):
-        _env, _status, _meta = refresh_scan_data()
-        ms = int(_meta.get("elapsed_ms") or 0)
-        mode = _meta.get("mode") or "?"
-        if _env is not None:
-            _set_last_action(
-                "ok",
-                f"Scan refreshed in {ms}ms ({mode}) · asOf={_status.get('as_of')} · n={_status.get('n_results')}",
-            )
-        else:
-            _set_last_action(
-                "bad",
-                f"Scan refresh failed in {ms}ms — {_status.get('error')}",
-            )
-        st.session_state["scan_refresh_meta"] = _meta
-        st.rerun()
-with _tb2:
-    if st.button("Seed demo book", key="toolbar_seed_demo", type="primary", use_container_width=True):
-        ex = get_executor()
-        seeded = seed_demo_book(ex, reset=True)
-        _set_last_action(
-            "ok",
-            f"Demo book seeded — {len(seeded)} open + closed winner",
-            position_id=seeded[0]["id"] if seeded else None,
-        )
-        if seeded:
-            st.session_state["focus_position_id"] = seeded[0]["id"]
-        st.rerun()
-with _tb3:
     _ui = scanner_ui_url()
     if _ui:
         st.link_button("Open Stock Scanner", _ui, use_container_width=True)
-with _tb4:
-    st.caption("Refresh polls the scan JSON only — fast, no Yahoo rescan.")
+with _tb2:
+    st.caption(
+        "Seed, refresh, and bulk actions live in the sidebar (⚙️). "
+        "Refresh polls the scan JSON only — fast, no Yahoo rescan."
+    )
 
 
 ex = get_executor()
@@ -712,26 +754,25 @@ with c6:
 with c7:
     st.markdown(
         _metric_card(
-            "BP / Capital Secured",
+            "Buying Power / Capital",
             f"{_money(metrics['buying_power'])} / {_money(metrics['capital_secured'])}",
-            hint="BP ≈ cash; capital = sum of open collateral (CSP/spread width)",
+            hint="Buying power ≈ cash; capital = collateral tied up in open trades",
         ),
         unsafe_allow_html=True,
     )
 
 st.caption(
-    f"Day P&L note: {metrics['day_pnl_note']} · "
-    "Activity tab timestamps are fill times (PT). "
-    "**Premium collected** = credits taken when opening; "
-    "**Realized** = P&L after close (credit − close debit)."
+    "Day P&L (EST) = realized today + current unrealized. "
+    "Fill timestamps are Pacific (PT). "
+    "**Premium collected** = credits taken when opening. "
+    "**Realized** = credit − close debit."
 )
 
 # Portfolio Greeks bar
 st.markdown(
     f"""
 <div class="greeks-bar">
-  <div><span class="greek-label">Portfolio Greeks</span>
-    <span class="est-tag">{greeks['label']}</span></div>
+  <div><span class="greek-label">Portfolio Greeks</span> <span class="est-tag">{greeks['label']}</span></div>
   <div class="greek-item"><span class="greek-label">Δ Delta</span><br>
     <b>{greeks['delta']:+.1f}</b></div>
   <div class="greek-item"><span class="greek-label">Θ Theta</span><br>
@@ -753,7 +794,7 @@ if not _in_play:
     st.caption("No open strategies yet.")
     if st.button("🌱 Seed demo book", key="seed_empty_strat"):
         seeded = seed_demo_book(ex, reset=True)
-        _set_last_action("ok", f"Demo book seeded — {len(seeded)} opens")
+        _set_last_action("ok", f"Demo book seeded: {len(seeded)} open positions + 1 closed winner")
         if seeded:
             st.session_state["focus_position_id"] = seeded[0]["id"]
         st.rerun()
@@ -763,9 +804,10 @@ else:
     for i, row in enumerate(_in_play):
         with cols[i % len(cols)]:
             active = filt == row["strategy"]
+            disp = _strat_name(row["strategy"])
             st.markdown(
                 f'<div class="strat-card{" active" if active else ""}">'
-                f'<div class="strat-name">{row["strategy"]}</div>'
+                f'<div class="strat-name">{disp}</div>'
                 f'<div class="strat-meta">{row["open_count"]} open · '
                 f'cap {_money(row["capital"])}</div>'
                 f'<div>Unreal <span class="{_pnl_class(row["unrealized"])}">'
@@ -774,27 +816,31 @@ else:
                 f'{_money(row["realized"], True)}</span></div></div>',
                 unsafe_allow_html=True,
             )
-            label = f"Filter {row['strategy']}" if not active else f"Clear filter ({row['strategy']})"
+            label = f"Filter {disp}" if not active else f"Clear filter ({disp})"
             if st.button(label, key=f"strat_filt_{row['strategy']}", use_container_width=True):
                 st.session_state["strategy_filter"] = None if active else row["strategy"]
                 st.rerun()
     if filt:
-        st.caption(f"Positions filtered to **{filt}** — clear via the active card button.")
+        st.caption(f"Positions filtered to **{_strat_name(filt)}** — clear via the active card button.")
 
 # Risk rejection / cap banner
 _cfg_risk = load_defaults()
 _risk_lim = risk_limits_from_config(_cfg_risk)
 _book = evaluate_book(ex.portfolio.get("positions", []), _risk_lim)
+_risk_status_name = {"ok": "OK", "soft_warn": "Watch", "hard_breach": "BREACH"}.get(
+    _book["status"], str(_book["status"]).upper()
+)
 st.markdown(
-    f"**Portfolio capital/risk cap:** ${_book['max_portfolio_risk_usd']:,.0f} · "
+    f"**Capital / risk** — cap ${_book['max_portfolio_risk_usd']:,.0f} · "
     f"open risk ${_book['aggregate_open_risk']:,.0f} · "
     f"headroom ${_book['headroom']:,.0f} · "
-    f"status `{_book['status']}` · auto_trim=`{_book['auto_trim']}`"
+    f"status **{_risk_status_name}** · "
+    f"auto-trim **{'on' if _book.get('auto_trim') else 'off'}**"
 )
 st.caption(
-    "Open risk ≈ sum of max loss / capital at risk on open trades. "
+    "Open risk ≈ max loss / capital at risk on open trades. "
     "Headroom = hard cap − open risk. "
-    "BP ≈ cash; capital secured = collateral tied up (not subtracted from cash in this paper model)."
+    "Buying power ≈ cash; capital = collateral tied up (not subtracted from cash in this paper model)."
 )
 _last = ex.portfolio.get("last_risk_event")
 if _last and _last.get("type") == "risk_rejected":
@@ -811,15 +857,14 @@ if _trim and _trim.get("type") == "risk_trim":
 
 # Scanner status strip
 envelope, scan_status = load_scan_envelope()
-as_of = scan_status.get("as_of") or "—"
+as_of = _format_ts_pt(scan_status.get("as_of"))
 src = scan_status.get("source") or "—"
 ok_cls = "status-ok" if scan_status.get("ok") else "status-bad"
 kind = scan_status.get("source_kind") or ("local" if scan_status.get("local_ok") else "?")
 st.markdown(
-    f"**Scanner UI:** [{scanner_ui_url()}]({scanner_ui_url()}) · "
-    f"**BASE:** `{scanner_base_url()}` · "
+    f"**Scanner:** `{scanner_base_url()}` · "
     f"**Data:** <span class='{ok_cls}'>{'OK' if scan_status.get('ok') else 'ERR'}</span> · "
-    f"source=<span class='status-ok'>{kind}</span> · asOf=`{as_of}`",
+    f"source `{kind}` · as of `{as_of}`",
     unsafe_allow_html=True,
 )
 if scan_status.get("remote_note"):
@@ -838,7 +883,7 @@ with tab_pos:
     focus_id = st.session_state.get("focus_position_id")
     if filt:
         fc1, fc2 = st.columns([3, 1])
-        fc1.info(f"Showing only **{filt}** positions (filter set from Strategies in play).")
+        fc1.info(f"Showing only **{_strat_name(filt)}** positions (filter set from Strategies in play).")
         if fc2.button(f"Clear filter", key="clear_strat_filter_pos"):
             st.session_state["strategy_filter"] = None
             st.rerun()
@@ -853,7 +898,7 @@ with tab_pos:
             st.info("No open positions. Use **Seed demo book** or open from Candidates.")
             if st.button("🌱 Seed demo book", key="seed_empty_pos"):
                 seeded = seed_demo_book(ex, reset=True)
-                _set_last_action("ok", f"Demo book seeded — {len(seeded)} opens")
+                _set_last_action("ok", f"Demo book seeded: {len(seeded)} open positions + 1 closed winner")
                 if seeded:
                     st.session_state["focus_position_id"] = seeded[0]["id"]
                 st.rerun()
@@ -868,14 +913,14 @@ with tab_pos:
                         "id": p["id"],
                         "Symbol": p.get("underlying"),
                         "⭐": "⭐" if ov["is_priority"] else ("◇" if ov["is_honorable"] else ""),
-                        "Strategy": p.get("strategy"),
+                        "Strategy": _strat_name(p.get("strategy")),
                         "Qty": _contract_qty(p.get("legs") or []),
                         "Legs": _legs_summary(p.get("legs") or []),
                         "DTE": p.get("dte"),
                         "Credit": p.get("credit"),
                         "Mark": p.get("mark"),
                         "Unrealized": p.get("unrealized_pnl"),
-                        "% Max": pct,
+                        "% of max": pct,
                         "Capital": p.get("capital"),
                         "Status": p.get("status"),
                     }
@@ -889,7 +934,7 @@ with tab_pos:
                         "Mark": "${:,.2f}",
                         "Unrealized": "${:+,.2f}",
                         "Capital": "${:,.2f}",
-                        "% Max": "{:.1f}%",
+                        "% of max": "{:.1f}%",
                     },
                     na_rep="—",
                 ),
@@ -898,7 +943,9 @@ with tab_pos:
             )
             st.caption(
                 "Summary is sortable. **Close / mark actions are on each card below.** "
-                "Money figures are **total ticket $** (not per-share)."
+                "Money figures are **total ticket $** (not per-share). "
+                "⭐ = priority ticker · ◇ = honorable mention · "
+                "**% of max** = unrealized ÷ max profit."
             )
 
             for p in open_pos:
@@ -914,14 +961,14 @@ with tab_pos:
                 )
                 expanded = focus_id == pid
                 header = (
-                    f"{p.get('underlying')} · {p.get('strategy')} · "
+                    f"{p.get('underlying')} · {_strat_name(p.get('strategy'))} · "
                     f"{(p.get('status') or 'OPEN').upper()} · "
                     f"{_money(ur, True)} · {pct_s}"
                 )
                 with st.expander(header, expanded=expanded):
                     st.markdown(
                         f'<div class="pos-header">{p.get("underlying")} · '
-                        f'{p.get("strategy")} · {(p.get("status") or "").upper()}'
+                        f'{_strat_name(p.get("strategy"))} · {(p.get("status") or "").upper()}'
                         f"{badge}</div>",
                         unsafe_allow_html=True,
                     )
@@ -980,7 +1027,7 @@ with tab_pos:
                             ex.update_mark(pid, mark_fraction=frac)
                             _set_last_action(
                                 "ok",
-                                f"Updated mark {p.get('underlying')} → {_money(mapped_debit)}",
+                                f"Mark updated and saved — {p.get('underlying')} → {_money(mapped_debit)}",
                                 pnl=est_unreal,
                                 position_id=pid,
                             )
@@ -989,11 +1036,13 @@ with tab_pos:
                     with b_close_mark:
                         mark_px = p.get("mark")
                         est_m = _est_realized_on_close(p, float(mark_px) if mark_px is not None else None)
-                        if st.button(
-                            f"Close @ mark ({_money(mark_px)})",
-                            key=f"cl_mark_{pid}",
-                            type="primary",
-                        ):
+                        _arm_m = bool(st.session_state.get(f"arm_cl_mark_{pid}"))
+                        _lbl_m = "⚠ Confirm close" if _arm_m else f"Close @ mark ({_money(mark_px)})"
+                        if st.button(_lbl_m, key=f"cl_mark_{pid}", type="primary"):
+                            if not _arm_m:
+                                st.session_state[f"arm_cl_mark_{pid}"] = True
+                                st.rerun()
+                            st.session_state[f"arm_cl_mark_{pid}"] = False
                             closed = ex.close_position(pid, price=None)
                             _set_last_action(
                                 "ok" if (closed.get("realized_pnl") or 0) >= 0 else "bad",
@@ -1007,10 +1056,13 @@ with tab_pos:
                     with b_close_50:
                         half = round(credit * 0.5, 2) if credit else 0.0
                         est_50 = _est_realized_on_close(p, half)
-                        if st.button(
-                            f"Close @ 50% credit ({_money(half)})",
-                            key=f"cl_50_{pid}",
-                        ):
+                        _arm_50 = bool(st.session_state.get(f"arm_cl_50_{pid}"))
+                        _lbl_50 = "⚠ Confirm close" if _arm_50 else f"Close @ 50% credit ({_money(half)})"
+                        if st.button(_lbl_50, key=f"cl_50_{pid}"):
+                            if not _arm_50:
+                                st.session_state[f"arm_cl_50_{pid}"] = True
+                                st.rerun()
+                            st.session_state[f"arm_cl_50_{pid}"] = False
                             closed = ex.close_position(pid, price=half)
                             _set_last_action(
                                 "ok" if (closed.get("realized_pnl") or 0) >= 0 else "bad",
@@ -1071,12 +1123,14 @@ with tab_pos:
         else:
             crows = []
             for p in closed:
+                _dh = days_held(p.get("opened_at"), p.get("closed_at"))
+                _dh_s = "—" if _dh is None else ("<1" if _dh < 1 else f"{_dh:.1f}")
                 crows.append(
                     {
                         "Symbol": p.get("underlying"),
-                        "Strategy": p.get("strategy"),
+                        "Strategy": _strat_name(p.get("strategy")),
                         "Realized": p.get("realized_pnl"),
-                        "Days held": days_held(p.get("opened_at"), p.get("closed_at")),
+                        "Days held": _dh_s,
                         "Closed at": _format_ts_pt(p.get("closed_at")),
                         "Credit": p.get("credit"),
                         "Close debit": p.get("close_price"),
@@ -1089,7 +1143,6 @@ with tab_pos:
                         "Realized": "${:+,.2f}",
                         "Credit": "${:,.2f}",
                         "Close debit": "${:,.2f}",
-                        "Days held": "{:.2f}",
                     },
                     na_rep="—",
                 ),
@@ -1116,17 +1169,21 @@ with tab_act:
             frows.append(
                 {
                     "Time (PT)": _format_ts_pt(f.get("ts")),
-                    "Type": ftype,
+                    "Type": str(ftype).replace("_", " ").title(),
                     "Symbol": f.get("underlying"),
-                    "Strategy": f.get("strategy"),
+                    "Strategy": _strat_name(f.get("strategy")),
                     "Fill $": f.get("fill_price"),
                     "Realized": f.get("realized_pnl"),
                     "Risk/Reason": reason[:120] if reason else "",
-                    "Position": (f.get("position_id") or "")[:8],
+                    "Pos. ID": (f.get("position_id") or "")[:8],
                 }
             )
+        # Drop the Risk/Reason column when it's empty for every row (less clutter)
+        _cols = list(frows[0].keys())
+        if all(not r["Risk/Reason"] for r in frows):
+            _cols.remove("Risk/Reason")
         st.dataframe(
-            pd.DataFrame(frows).style.format(
+            pd.DataFrame(frows)[_cols].style.format(
                 {
                     "Fill $": "${:,.2f}",
                     "Realized": "${:+,.2f}",
@@ -1139,10 +1196,14 @@ with tab_act:
 
 # ── Candidates ───────────────────────────────────────────────────────────
 with tab_cand:
-    st.markdown("**Open path:** use **Open this trade** on a row to paper-fill one candidate.")
+    st.markdown(
+        "**Open this trade** paper-fills one row. "
+        "**Bulk scan → paper open** (sidebar) walks every candidate at once."
+    )
     st.caption(
-        "Sidebar **Bulk scan → paper open** walks every candidate. "
-        "This button opens only the row you click."
+        "💰 **quoted** = live premium in the scan — opens as a filled paper trade · "
+        "🧾 **template** = no live quotes — opens as a *planned* idea, not a fill · "
+        "⭐ priority / ◇ mention = house watchlist tags."
     )
     if envelope is None:
         st.error(scan_status.get("error") or "Could not load scan JSON")
@@ -1150,11 +1211,12 @@ with tab_cand:
         ctx = load_portfolio_ctx(st.session_state.capital_ctx_path)
         cands = build_candidates(envelope, portfolio=ctx, cfg=load_defaults())
         st.markdown(
-            f"**{len(cands)}** symbols from scan · asOf `{as_of}` · source `{src}`"
+            f"**{len(cands)}** symbols from scan · as of `{as_of}` · source `{src}`"
         )
-        st.caption(
-            "💰 **quoted** = real premium from the scan — opens as a filled paper trade. "
-            "🧾 **template** = no live quotes yet — opens as a *planned* idea, not a fill."
+        st.caption("Columns: symbol · price · strategy · legs/strikes · credit · DTE · action.")
+        # Count of rows the sidebar bulk button would open (feeds its confirm warning)
+        st.session_state["cand_openable"] = sum(
+            1 for r in cands if not r.get("skipped") and r.get("plan") is not None
         )
         for row in cands:
             ov = celebrity_overlay(row.get("symbol"))
@@ -1164,22 +1226,15 @@ with tab_cand:
                 else ""
             )
             if row["skipped"]:
-                # Compact 4-col layout — no empty holes from unused action columns
-                scols = st.columns([1.4, 0.8, 1.2, 4.6])
-                scols[0].markdown(
-                    f"**{row['symbol']}**{badge_html}",
+                # Uniform one-liner for every skipped row
+                st.markdown(
+                    f"**{row['symbol']}**{badge_html} · {_money(row['price'])} · "
+                    f"{row.get('bias') or '—'} — skipped: "
+                    f"{row.get('skip_reason') or 'no strategy matched'}",
                     unsafe_allow_html=True,
                 )
-                if ov.get("caution"):
-                    scols[0].markdown(
-                        f'<div class="caution-cap">{ov["caution"]}</div>',
-                        unsafe_allow_html=True,
-                    )
-                scols[1].write(_money(row["price"]))
-                scols[2].write(row.get("bias") or "—")
-                scols[3].caption(f"Skipped — {row.get('skip_reason') or 'no strategy matched'}")
                 continue
-            cols = st.columns([1.4, 0.8, 1.2, 1.5, 1, 1, 1.4])
+            cols = st.columns([1.2, 0.7, 1.4, 1.6, 0.9, 0.7, 1.2])
             cols[0].markdown(
                 f"**{row['symbol']}**{badge_html}",
                 unsafe_allow_html=True,
@@ -1190,10 +1245,13 @@ with tab_cand:
                     unsafe_allow_html=True,
                 )
             cols[1].write(_money(row["price"]))
-            cols[2].write(row.get("bias") or "—")
             tmpl = "🧾 template" if row.get("is_template") else "💰 quoted"
-            cols[3].write(f"{row['strategy']} ({tmpl})")
+            cols[2].write(_strat_name(row["strategy"]))
+            cols[2].caption(f"{tmpl} · {row.get('bias') or '—'}")
+            cols[3].write(_plan_legs_summary(row.get("plan")))
+            cols[3].caption("legs / strikes")
             cols[4].write(_money(row.get("net_premium")))
+            cols[4].caption("credit")
             cols[5].write(f"DTE {row.get('target_dte') or '—'}")
             # Prefer volume / IV cols when celebrity overlay asks and scan has them
             if ov.get("prefer_volume_cols"):
@@ -1249,32 +1307,34 @@ with tab_cand:
                             break
                     _set_last_action(
                         "ok",
-                        f"Opened {row['symbol']} {row['strategy']} — fill {_money(ticket.fill_price)}",
+                        f"Opened {row['symbol']} {_strat_name(row['strategy'])} — fill {_money(ticket.fill_price)}",
                         pnl=None,
                         position_id=new_id,
                     )
                     st.session_state["focus_position_id"] = new_id
                 st.rerun()
             with st.expander(f"Details — {row['symbol']}"):
-                st.write(row.get("reason"))
-                st.write(row.get("notes"))
-                detail = {
-                    k: row[k]
-                    for k in (
-                        "max_profit",
-                        "max_loss",
-                        "capital",
-                        "iv_rank",
-                        "days_to_earnings",
-                        "is_template",
-                        "options_volume",
-                        "option_volume",
-                        "rel_volume",
-                        "relative_volume",
-                    )
-                    if k in row and row[k] is not None
-                }
-                st.json(detail)
+                if row.get("reason"):
+                    st.write(f"**Why this trade:** {row['reason']}")
+                if row.get("notes"):
+                    st.caption(str(row["notes"]))
+                _facts = []
+                if row.get("max_profit") is not None:
+                    _facts.append(f"**Max profit:** {_money(row['max_profit'])}")
+                if row.get("max_loss") is not None:
+                    _facts.append(f"**Max loss:** {_money(row['max_loss'])}")
+                if row.get("capital") is not None:
+                    _facts.append(f"**Capital:** {_money(row['capital'])}")
+                if row.get("iv_rank") is not None:
+                    _facts.append(f"**IV rank:** {row['iv_rank']}")
+                if row.get("days_to_earnings") is not None:
+                    _facts.append(f"**Days to earnings:** {row['days_to_earnings']}")
+                for _k in ("options_volume", "option_volume", "rel_volume", "relative_volume"):
+                    if row.get(_k) is not None:
+                        _facts.append(f"**{_k.replace('_', ' ').title()}:** {row[_k]}")
+                        break
+                if _facts:
+                    st.markdown("\n\n".join(f"- {_f}" for _f in _facts))
 
 # ── Risk ─────────────────────────────────────────────────────────────────
 with tab_risk:
@@ -1303,7 +1363,18 @@ with tab_risk:
         f"Hard breach trims highest-risk opens first. "
         f"Open risk ≈ max loss / capital at risk; headroom = cap − open risk."
     )
-    if st.button("Enforce $50k trim", type="primary", key="enforce_50k_trim"):
+    st.caption(
+        "Safety valve for a hard breach: closes the highest-risk open positions first "
+        "until headroom is restored. With status OK it trims nothing — "
+        "only press this during a breach."
+    )
+    _trim_armed = bool(st.session_state.get("trim_armed"))
+    _trim_label = "⚠ Confirm enforce $50k trim" if _trim_armed else "Enforce $50k trim"
+    if st.button(_trim_label, type="primary", key="enforce_50k_trim"):
+        if not _trim_armed:
+            st.session_state["trim_armed"] = True
+            st.rerun()
+        st.session_state["trim_armed"] = False
         result = enforce_hard_limits(ex, risk_limits)
         if result["trimmed"]:
             _set_last_action("amber", result["message"])
@@ -1318,7 +1389,8 @@ with tab_risk:
         st.info("Select/seed an open position to view payoff-at-expiration.")
     else:
         labels = {
-            f"{p['underlying']} · {p['strategy']} · {p['id'][:8]}": p for p in open_for_risk
+            f"{p['underlying']} · {_strat_name(p['strategy'])} · {p['id'][:8]}": p
+            for p in open_for_risk
         }
         choice = st.selectbox("Position for risk chart", list(labels.keys()), key="risk_pick")
         pos = labels[choice]
@@ -1367,7 +1439,7 @@ with tab_risk:
             template="plotly_dark",
             paper_bgcolor="#0b0f14",
             plot_bgcolor="#111821",
-            title=f"Payoff @ expiration — {pos['underlying']} {pos['strategy']}",
+            title=f"Payoff @ expiration — {pos['underlying']} {_strat_name(pos['strategy'])}",
             xaxis_title="Underlying price",
             yaxis_title="P/L ($)",
             height=420,
@@ -1388,6 +1460,11 @@ with tab_perf:
     unreal = sum(float(p.get("unrealized_pnl") or 0) for p in ex.list_open() if p.get("status") == "open")
     if not closes:
         st.caption(f"No closes yet. Open unrealized (EST): {_money(unreal, True)}")
+    elif len(closes) < 2:
+        st.caption(
+            f"Only {len(closes)} close so far — the cumulative line needs 2+ closes. "
+            f"Open unrealized (EST): {_money(unreal, True)}"
+        )
     else:
         cum = 0.0
         xs, ys = [], []
@@ -1446,13 +1523,13 @@ with tab_perf:
         st.info("No strategy data yet.")
         if st.button("🌱 Seed demo book", key="seed_empty_perf"):
             seeded = seed_demo_book(ex, reset=True)
-            _set_last_action("ok", f"Demo book seeded — {len(seeded)} opens")
+            _set_last_action("ok", f"Demo book seeded: {len(seeded)} open positions + 1 closed winner")
             st.rerun()
     else:
         sdf = pd.DataFrame(
             [
                 {
-                    "Strategy": r["strategy"],
+                    "Strategy": _strat_name(r["strategy"]),
                     "Open #": r["open_count"],
                     "Unrealized": r["unrealized"],
                     "Closed #": r["closed_count"],
@@ -1536,10 +1613,14 @@ with tab_perf:
         st.markdown("##### Premium by strategy")
         if by_strat:
             sdf2 = pd.DataFrame(
-                [{"Strategy": k, "Premium": v} for k, v in sorted(by_strat.items())]
+                [{"Strategy": _strat_name(k), "Premium": v} for k, v in sorted(by_strat.items())]
             )
             st.bar_chart(sdf2.set_index("Strategy"), color="#3dd68c")
-            st.dataframe(sdf2, use_container_width=True, hide_index=True)
+            st.dataframe(
+                sdf2.style.format({"Premium": "${:,.2f}"}, na_rep="—"),
+                use_container_width=True,
+                hide_index=True,
+            )
         else:
             st.caption("No premium yet.")
     with i2:
@@ -1549,6 +1630,10 @@ with tab_perf:
                 [{"Ticker": k, "Premium": v} for k, v in sorted(by_ticker.items())]
             )
             st.bar_chart(tdf2.set_index("Ticker"), color="#58a6ff")
-            st.dataframe(tdf2, use_container_width=True, hide_index=True)
+            st.dataframe(
+                tdf2.style.format({"Premium": "${:,.2f}"}, na_rep="—"),
+                use_container_width=True,
+                hide_index=True,
+            )
         else:
             st.caption("No premium yet.")
