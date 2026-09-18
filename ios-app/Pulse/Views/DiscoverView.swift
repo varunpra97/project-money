@@ -84,7 +84,7 @@ struct DiscoverView: View {
             if loading && earnings == nil {
                 placeholderCards(3, height: 64)
             } else {
-                ForEach(earnings?.rows ?? []) { row in
+                ForEach(earnings?.rows ?? [EarningsRow]()) { row in
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(row.symbol)
@@ -128,7 +128,7 @@ struct DiscoverView: View {
             if loading && volatility == nil {
                 placeholderCards(3, height: 84)
             } else {
-                ForEach(volatility?.rows ?? []) { row in
+                ForEach(volatility?.rows ?? [VolatilityRow]()) { row in
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
                             VStack(alignment: .leading, spacing: 2) {

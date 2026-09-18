@@ -13,6 +13,18 @@ extension Color {
     static let pulseTertiary = Color(white: 0.4)
 }
 
+/// Makes the brand colors usable in `some ShapeStyle` contexts like
+/// `.foregroundStyle(.pulseSecondary)`, where a plain `Color` extension
+/// member is not visible to the compiler.
+extension ShapeStyle where Self == Color {
+    static var pulseGreen: Color { .pulseGreen }
+    static var pulseRed: Color { .pulseRed }
+    static var pulseBg: Color { .pulseBg }
+    static var pulseCard: Color { .pulseCard }
+    static var pulseSecondary: Color { .pulseSecondary }
+    static var pulseTertiary: Color { .pulseTertiary }
+}
+
 // MARK: - Card container
 
 extension View {
