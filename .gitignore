@@ -8,3 +8,4 @@ node_modules/
 data/paper_portfolio.json
 .env
 *.log
+stock-data-scanner/market_signals_cache.json
