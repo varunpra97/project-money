@@ -371,6 +371,12 @@ def _money_md(v: Any, signed: bool = False) -> str:
     return _money(v, signed).replace("$", "\\$")
 
 
+def _money_html(v: Any, signed: bool = False) -> str:
+    """Money inside raw HTML blocks (unsafe_allow_html): backslash escapes don't
+    work in HTML, and bare $ pairs still get eaten as KaTeX — use the entity."""
+    return _money(v, signed).replace("$", "&#36;")
+
+
 def _pnl_class(v: Any) -> str:
     try:
         if v is None:
@@ -693,7 +699,7 @@ if _la:
     css = {"ok": "flash-ok", "bad": "flash-bad", "amber": "flash-amber"}.get(kind, "flash-ok")
     pnl_bit = ""
     if _la.get("pnl") is not None:
-        pnl_bit = f" · <b>{_money_md(_la['pnl'], signed=True)}</b>"
+        pnl_bit = f" · <b>{_money_html(_la['pnl'], signed=True)}</b>"
     ts_bit = _format_ts_pt(_la.get("ts"))
     c_flash, c_x = st.columns([12, 1])
     with c_flash:
@@ -847,11 +853,11 @@ else:
                 f'<div class="strat-card{" active" if active else ""}">'
                 f'<div class="strat-name">{disp}</div>'
                 f'<div class="strat-meta">{row["open_count"]} open · '
-                f'cap {_money_md(row["capital"])}</div>'
+                f'cap {_money_html(row["capital"])}</div>'
                 f'<div>Unreal <span class="{_pnl_class(row["unrealized"])}">'
-                f'{_money_md(row["unrealized"], True)}</span> · '
+                f'{_money_html(row["unrealized"], True)}</span> · '
                 f'Real <span class="{_pnl_class(row["realized"])}">'
-                f'{_money_md(row["realized"], True)}</span></div></div>',
+                f'{_money_html(row["realized"], True)}</span></div></div>',
                 unsafe_allow_html=True,
             )
             label = f"Filter {disp}" if not active else f"Clear filter ({disp})"
@@ -1141,7 +1147,7 @@ with tab_pos:
                             ex.update_mark(pid, mark_fraction=frac)
                             _set_last_action(
                                 "ok",
-                                f"Mark updated and saved — {p.get('underlying')} → {_money_md(mapped_debit)}",
+                                f"Mark updated and saved — {p.get('underlying')} → {_money_html(mapped_debit)}",
                                 pnl=est_unreal,
                                 position_id=pid,
                             )
@@ -1213,7 +1219,7 @@ with tab_pos:
                             closed = ex.close_position(pid, price=float(custom_px))
                             _set_last_action(
                                 "ok" if (closed.get("realized_pnl") or 0) >= 0 else "bad",
-                                f"Closed {closed.get('underlying')} @ custom {_money_md(custom_px)}",
+                                f"Closed {closed.get('underlying')} @ custom {_money_html(custom_px)}",
                                 pnl=closed.get("realized_pnl"),
                                 position_id=pid,
                             )
@@ -1422,7 +1428,7 @@ with tab_cand:
                             break
                     _set_last_action(
                         "ok",
-                        f"Opened {row['symbol']} {_strat_name(row['strategy'])} — fill {_money_md(ticket.fill_price)}",
+                        f"Opened {row['symbol']} {_strat_name(row['strategy'])} — fill {_money_html(ticket.fill_price)}",
                         pnl=None,
                         position_id=new_id,
                     )
