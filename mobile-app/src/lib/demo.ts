@@ -88,7 +88,7 @@ export const demoSummary = () => ({
   account_value: 51240.18,
   buying_power: 18420.55,
   day_pnl: 342.66,
-  day_pnl_pct: 0.0067,
+  day_pnl_pct: 0.67,
   total_pnl: 1240.18,
   open_positions: 3,
   greeks: { delta: 12.4, theta: 8.2, vega: -45.1 },

@@ -25,11 +25,25 @@
                   margin-right: 10px; animation: bl 1s infinite alternate; }
       @keyframes bl { from { opacity: .25; } to { opacity: 1; } }
     </style>
-    <script type="module" crossorigin src="./assets/index-CiApmT5_.js"></script>
+    <script type="module" crossorigin src="./assets/index-CtptB_Tq.js"></script>
     <link rel="modulepreload" crossorigin href="./assets/vendor-BdZgHC1P.js">
     <link rel="stylesheet" crossorigin href="./assets/style-Dfv2AjKl.css">
   </head>
   <body>
     <div id="root"><div id="boot"><span class="boot-dot"></span>Pulse</div></div>
+    <script>
+      // Boot watchdog: if the app hasn't mounted after 12s, say so instead of
+      // leaving a blank screen. (React replaces #boot on successful mount.)
+      setTimeout(function () {
+        var b = document.getElementById("boot");
+        if (!b) return;
+        b.innerHTML =
+          '<div style="text-align:center;padding:0 32px">' +
+          '<div style="font-size:20px;margin-bottom:8px">Pulse couldn\u2019t start</div>' +
+          '<div style="font-size:13px;font-weight:400;color:#8e8e93;margin-bottom:20px">Check your connection, then try again.</div>' +
+          '<button onclick="location.reload()" style="font:600 16px -apple-system,sans-serif;color:#fff;' +
+          'background:#00c805;border:0;border-radius:12px;padding:12px 32px">Reload</button></div>';
+      }, 12000);
+    </script>
   </body>
 </html>

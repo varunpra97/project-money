@@ -51,8 +51,10 @@ export default function Discover() {
   const celeb = useApi<{ scan_date: string; moves: CelebMove[] }>("/api/insights/celebrity");
   const earn = useApi<{ as_of: string; fresh: boolean; rows: EarnRow[] }>("/api/insights/earnings");
   const vol = useApi<{ as_of: string; fresh: boolean; rows: VolRow[] }>("/api/insights/volatility");
-  const cand = useApi<Candidate[]>("/api/candidates");
+  const cand = useApi<{ candidates: Candidate[] } | Candidate[]>("/api/candidates");
   const anyDemo = celeb.demo || earn.demo || vol.demo || cand.demo;
+  // The API wraps the list ({candidates: [...]}) while demo data is a bare array.
+  const candList = Array.isArray(cand.data) ? cand.data : cand.data?.candidates ?? [];
 
   const earnRows = (earn.data?.rows ?? []).filter((r) => r.status === "Upcoming" || r.status === "Just reported");
   const earnIdle = (earn.data?.rows ?? []).filter((r) => r.status !== "Upcoming" && r.status !== "Just reported");
@@ -68,11 +70,11 @@ export default function Discover() {
       <div className="section-title">Top candidates</div>
       {cand.loading && !cand.data ? (
         <div className="sk" style={{ height: 150 }} />
-      ) : (cand.data ?? []).length === 0 ? (
+      ) : candList.length === 0 ? (
         <div className="empty">No candidates right now.</div>
       ) : (
         <div className="rail">
-          {(cand.data ?? []).map((c) => (
+          {candList.map((c) => (
             <div className="rail-card" key={c.symbol + c.strategy}>
               <div className="sym">{c.symbol}</div>
               <div className="co">{c.company}</div>

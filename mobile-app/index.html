@@ -29,5 +29,19 @@
   <body>
     <div id="root"><div id="boot"><span class="boot-dot"></span>Pulse</div></div>
     <script type="module" src="./src/main.tsx"></script>
+    <script>
+      // Boot watchdog: if the app hasn't mounted after 12s, say so instead of
+      // leaving a blank screen. (React replaces #boot on successful mount.)
+      setTimeout(function () {
+        var b = document.getElementById("boot");
+        if (!b) return;
+        b.innerHTML =
+          '<div style="text-align:center;padding:0 32px">' +
+          '<div style="font-size:20px;margin-bottom:8px">Pulse couldn\u2019t start</div>' +
+          '<div style="font-size:13px;font-weight:400;color:#8e8e93;margin-bottom:20px">Check your connection, then try again.</div>' +
+          '<button onclick="location.reload()" style="font:600 16px -apple-system,sans-serif;color:#fff;' +
+          'background:#00c805;border:0;border-radius:12px;padding:12px 32px">Reload</button></div>';
+      }, 12000);
+    </script>
   </body>
 </html>

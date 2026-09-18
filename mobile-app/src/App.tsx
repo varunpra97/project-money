@@ -1,4 +1,4 @@
-import { Suspense, lazy, useState } from "react";
+import { Component, Suspense, lazy, useState, type ReactNode } from "react";
 
 const Home = lazy(() => import("./tabs/Home"));
 const Discover = lazy(() => import("./tabs/Discover"));
@@ -53,18 +53,47 @@ function TabSkeleton() {
   );
 }
 
+/** Last line of defense: a render crash can never blank the whole app again. */
+class TabErrorBoundary extends Component<{ children: ReactNode; tab: string }, { failed: boolean }> {
+  state = { failed: false };
+  static getDerivedStateFromError() { return { failed: true }; }
+  componentDidCatch() { /* swallowed: fallback UI below */ }
+  render() {
+    if (this.state.failed) {
+      return (
+        <div>
+          <div className="screen-title">Something glitched</div>
+          <div className="empty" style={{ marginTop: 12 }}>
+            This tab hit a rendering error. Your data is safe — try reloading it.
+          </div>
+          <button
+            className="retry-btn"
+            style={{ marginTop: 12 }}
+            onClick={() => this.setState({ failed: false })}
+          >
+            Try again
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 export default function App() {
   const [tab, setTab] = useState<TabKey>("home");
 
   return (
     <div className="app">
       <main className="main" key={tab}>
-        <Suspense fallback={<TabSkeleton />}>
-          {tab === "home" && <Home />}
-          {tab === "discover" && <Discover />}
-          {tab === "search" && <Search />}
-          {tab === "activity" && <Activity />}
-        </Suspense>
+        <TabErrorBoundary tab={tab} key={tab}>
+          <Suspense fallback={<TabSkeleton />}>
+            {tab === "home" && <Home />}
+            {tab === "discover" && <Discover />}
+            {tab === "search" && <Search />}
+            {tab === "activity" && <Activity />}
+          </Suspense>
+        </TabErrorBoundary>
       </main>
       <nav className="tabbar" aria-label="Primary">
         <div className="tabbar-inner">

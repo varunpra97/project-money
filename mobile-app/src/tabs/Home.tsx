@@ -1,6 +1,6 @@
 import { lazy, Suspense, useMemo, useState } from "react";
 import { RANGES, useApi } from "../lib/api";
-import { cls, fmtDate, money, moneySigned, pct, pctPts } from "../lib/fmt";
+import { cls, fmtDate, money, moneySigned, pctPts } from "../lib/fmt";
 
 const Chart = lazy(() => import("../components/Chart"));
 
@@ -114,8 +114,12 @@ function PositionCard({ p }: { p: Position }) {
 
 export default function Home() {
   const s = useApi<Summary>("/api/portfolio/summary");
-  const pos = useApi<Position[]>("/api/portfolio/positions");
-  const positions = useMemo(() => pos.data ?? [], [pos.data]);
+  const pos = useApi<{ positions: Position[] } | Position[]>("/api/portfolio/positions");
+  // The API wraps the list ({positions: [...]}) while demo data is a bare array.
+  const positions = useMemo(() => {
+    const d = pos.data;
+    return Array.isArray(d) ? d : d?.positions ?? [];
+  }, [pos.data]);
 
   // Headline chart: largest position's underlying, else SPY benchmark.
   const heroSym = positions.length
@@ -133,7 +137,7 @@ export default function Home() {
       <div className="hero-label">Account value</div>
       <div className="hero-value">{money(s.data?.account_value)}</div>
       <div className={`hero-sub ${cls(s.data?.day_pnl)}`}>
-        {moneySigned(s.data?.day_pnl)} <span className="pct">({pct(s.data?.day_pnl_pct)}) today</span>
+        {moneySigned(s.data?.day_pnl)} <span className="pct">({pctPts(s.data?.day_pnl_pct)}) today</span>
       </div>
 
       <div style={{ marginTop: 18 }}>

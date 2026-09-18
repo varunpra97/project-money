@@ -24,11 +24,16 @@ self.addEventListener("fetch", (event) => {
 
   if (url.pathname.includes("/api/")) {
     // Network-first for API: fresh data when online, cached when not.
+    // Only cache genuine JSON responses — never cache error/HTML pages
+    // as API data (a wrong-path fetch returns the SPA/dashboard HTML).
     event.respondWith(
       fetch(request)
         .then((res) => {
-          const copy = res.clone();
-          caches.open(CACHE).then((c) => c.put(request, copy)).catch(() => {});
+          const ct = res.headers.get("content-type") || "";
+          if (res.ok && ct.includes("application/json")) {
+            const copy = res.clone();
+            caches.open(CACHE).then((c) => c.put(request, copy)).catch(() => {});
+          }
           return res;
         })
         .catch(() => caches.match(request))

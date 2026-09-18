@@ -11,8 +11,9 @@ const DOT: Record<string, string> = { open: "open", close: "close", mark: "mark"
 
 export default function Activity() {
   const s = useApi<Summary>("/api/portfolio/summary");
-  const a = useApi<Act[]>("/api/portfolio/activity");
-  const items = a.data ?? [];
+  const a = useApi<{ activity: Act[] } | Act[]>("/api/portfolio/activity");
+  // The API wraps the list ({activity: [...]}) while demo data is a bare array.
+  const items = Array.isArray(a.data) ? a.data : a.data?.activity ?? [];
 
   return (
     <div>
