@@ -41,7 +41,7 @@ struct PriceChart: View {
                     .overlay {
                         Text("No chart data")
                             .font(.callout)
-                            .foregroundStyle(.pulseSecondary)
+                            .foregroundStyle(Color.pulseSecondary)
                     }
             } else {
                 Chart(points) { p in

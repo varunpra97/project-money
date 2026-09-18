@@ -26,7 +26,7 @@ struct ActivityView: View {
                     } else if items.isEmpty {
                         Text("No activity yet.")
                             .font(.callout)
-                            .foregroundStyle(.pulseSecondary)
+                            .foregroundStyle(Color.pulseSecondary)
                             .card()
                     } else {
                         ForEach(items) { item in
@@ -59,7 +59,7 @@ struct ActivityView: View {
         VStack(alignment: .leading, spacing: 4) {
             Text(label)
                 .font(.caption)
-                .foregroundStyle(.pulseSecondary)
+                .foregroundStyle(Color.pulseSecondary)
             Text(value)
                 .font(.title3.weight(.semibold))
                 .foregroundStyle(color)
@@ -84,7 +84,7 @@ struct ActivityView: View {
                     .lineLimit(2)
                 Text(relativeString(item.ts))
                     .font(.caption)
-                    .foregroundStyle(.pulseSecondary)
+                    .foregroundStyle(Color.pulseSecondary)
             }
             Spacer()
             if let amt = item.amount {

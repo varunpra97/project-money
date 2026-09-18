@@ -70,7 +70,7 @@ struct HomeView: View {
                     .font(.system(size: 34, weight: .semibold))
                 Text(scrubDateLabel(s.date, range: range))
                     .font(.subheadline)
-                    .foregroundStyle(.pulseSecondary)
+                    .foregroundStyle(Color.pulseSecondary)
             } else {
                 Text(money(summary?.accountValue))
                     .font(.system(size: 34, weight: .semibold))
@@ -78,7 +78,7 @@ struct HomeView: View {
                     Text(signedMoney(summary?.dayPnl))
                     Text("(\(pct(summary?.dayPnlPct)))")
                     Text("Today")
-                        .foregroundStyle(.pulseSecondary)
+                        .foregroundStyle(Color.pulseSecondary)
                 }
                 .font(.subheadline.weight(.medium))
                 .foregroundStyle(pnlColor(summary?.dayPnl))
@@ -122,7 +122,7 @@ struct HomeView: View {
             } else if positions.isEmpty {
                 Text("No open positions.")
                     .font(.callout)
-                    .foregroundStyle(.pulseSecondary)
+                    .foregroundStyle(Color.pulseSecondary)
                     .card()
             } else {
                 ForEach(positions) { pos in
@@ -145,7 +145,7 @@ struct HomeView: View {
                             .font(.headline)
                         Text(pos.displayName)
                             .font(.caption)
-                            .foregroundStyle(.pulseSecondary)
+                            .foregroundStyle(Color.pulseSecondary)
                             .lineLimit(1)
                     }
                     Spacer()
@@ -156,12 +156,12 @@ struct HomeView: View {
                         if let dte = pos.dte {
                             Text("\(dte) DTE")
                                 .font(.caption)
-                                .foregroundStyle(.pulseSecondary)
+                                .foregroundStyle(Color.pulseSecondary)
                         }
                     }
                     Image(systemName: "chevron.down")
                         .font(.caption.weight(.semibold))
-                        .foregroundStyle(.pulseTertiary)
+                        .foregroundStyle(Color.pulseTertiary)
                         .rotationEffect(.degrees(expandedId == pos.id ? 180 : 0))
                 }
             }
@@ -191,7 +191,7 @@ struct HomeView: View {
         VStack(alignment: .leading, spacing: 2) {
             Text(label)
                 .font(.caption)
-                .foregroundStyle(.pulseSecondary)
+                .foregroundStyle(Color.pulseSecondary)
             Text(value)
                 .font(.subheadline.weight(.medium))
         }

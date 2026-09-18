@@ -23,7 +23,7 @@ struct DiscoverView: View {
                     candidatesSection
                     Text("Insights are context only — not trade signals.")
                         .font(.footnote)
-                        .foregroundStyle(.pulseTertiary)
+                        .foregroundStyle(Color.pulseTertiary)
                         .padding(.top, 4)
                 }
                 .padding()
@@ -63,12 +63,12 @@ struct DiscoverView: View {
                         }
                         Text(m.company)
                             .font(.caption)
-                            .foregroundStyle(.pulseSecondary)
+                            .foregroundStyle(Color.pulseSecondary)
                         Text(m.investor)
                             .font(.subheadline.weight(.medium))
                         Text(m.whatChanged)
                             .font(.callout)
-                            .foregroundStyle(.pulseSecondary)
+                            .foregroundStyle(Color.pulseSecondary)
                     }
                     .card()
                 }
@@ -91,7 +91,7 @@ struct DiscoverView: View {
                                 .font(.headline)
                             Text(row.company)
                                 .font(.caption)
-                                .foregroundStyle(.pulseSecondary)
+                                .foregroundStyle(Color.pulseSecondary)
                                 .lineLimit(1)
                         }
                         Spacer()
@@ -136,7 +136,7 @@ struct DiscoverView: View {
                                     .font(.headline)
                                 Text(row.company)
                                     .font(.caption)
-                                    .foregroundStyle(.pulseSecondary)
+                                    .foregroundStyle(Color.pulseSecondary)
                                     .lineLimit(1)
                             }
                             Spacer()
@@ -177,7 +177,7 @@ struct DiscoverView: View {
         VStack(alignment: .leading, spacing: 2) {
             Text(label)
                 .font(.caption2)
-                .foregroundStyle(.pulseTertiary)
+                .foregroundStyle(Color.pulseTertiary)
             Text(value)
                 .font(.caption.weight(.semibold))
         }
@@ -208,14 +208,14 @@ struct DiscoverView: View {
                                     .font(.headline)
                                 Text(c.displayName)
                                     .font(.caption)
-                                    .foregroundStyle(.pulseSecondary)
+                                    .foregroundStyle(Color.pulseSecondary)
                                     .lineLimit(2)
                                 Spacer()
                                 HStack {
                                     if let dte = c.dte {
                                         Text("\(dte) DTE")
                                             .font(.caption2)
-                                            .foregroundStyle(.pulseTertiary)
+                                            .foregroundStyle(Color.pulseTertiary)
                                     }
                                     Spacer()
                                     if let bias = c.bias {

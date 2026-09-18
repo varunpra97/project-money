@@ -48,7 +48,7 @@ struct SetupView: View {
                 Text("One step left")
                     .font(.title2.weight(.semibold))
                 Text("Point the app at your Pulse API, then rebuild:")
-                    .foregroundStyle(.pulseSecondary)
+                    .foregroundStyle(Color.pulseSecondary)
                 VStack(alignment: .leading, spacing: 8) {
                     Text("1. In Xcode, open Pulse/Config.swift")
                     Text("2. Set AppConfig.baseURL to your API's public URL")
@@ -58,7 +58,7 @@ struct SetupView: View {
                 .card()
                 Text("The API URL looks like https://something.trycloudflare.com — no trailing slash. It comes from whoever hosts your Pulse backend.")
                     .font(.footnote)
-                    .foregroundStyle(.pulseSecondary)
+                    .foregroundStyle(Color.pulseSecondary)
                 Spacer()
             }
             .padding()

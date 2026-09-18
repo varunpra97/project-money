@@ -57,7 +57,7 @@ struct SearchView: View {
     private var searchField: some View {
         HStack(spacing: 8) {
             Image(systemName: "magnifyingglass")
-                .foregroundStyle(.pulseSecondary)
+                .foregroundStyle(Color.pulseSecondary)
             TextField("Symbol, e.g. AAPL", text: $symbol)
                 .textInputAutocapitalization(.characters)
                 .autocorrectionDisabled()
@@ -68,7 +68,7 @@ struct SearchView: View {
                     symbol = ""
                 } label: {
                     Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(.pulseSecondary)
+                        .foregroundStyle(Color.pulseSecondary)
                 }
             }
         }
@@ -88,7 +88,7 @@ struct SearchView: View {
                     .font(.system(size: 32, weight: .semibold))
                 Text(scrubDateLabel(s.date, range: range))
                     .font(.subheadline)
-                    .foregroundStyle(.pulseSecondary)
+                    .foregroundStyle(Color.pulseSecondary)
             } else {
                 Text(money(q.price))
                     .font(.system(size: 32, weight: .semibold))
@@ -135,7 +135,7 @@ struct SearchView: View {
         VStack(alignment: .leading, spacing: 4) {
             Text(label)
                 .font(.caption)
-                .foregroundStyle(.pulseSecondary)
+                .foregroundStyle(Color.pulseSecondary)
             Text(value)
                 .font(.headline)
         }
@@ -180,10 +180,10 @@ struct SearchView: View {
         VStack(spacing: 12) {
             Image(systemName: "magnifyingglass")
                 .font(.largeTitle)
-                .foregroundStyle(.pulseTertiary)
+                .foregroundStyle(Color.pulseTertiary)
             Text("Look up any symbol for a live quote, chart, and volatility check.")
                 .font(.callout)
-                .foregroundStyle(.pulseSecondary)
+                .foregroundStyle(Color.pulseSecondary)
                 .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity)

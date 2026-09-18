@@ -13,18 +13,6 @@ extension Color {
     static let pulseTertiary = Color(white: 0.4)
 }
 
-/// Makes the brand colors usable in `some ShapeStyle` contexts like
-/// `.foregroundStyle(.pulseSecondary)`, where a plain `Color` extension
-/// member is not visible to the compiler.
-extension ShapeStyle where Self == Color {
-    static var pulseGreen: Color { .pulseGreen }
-    static var pulseRed: Color { .pulseRed }
-    static var pulseBg: Color { .pulseBg }
-    static var pulseCard: Color { .pulseCard }
-    static var pulseSecondary: Color { .pulseSecondary }
-    static var pulseTertiary: Color { .pulseTertiary }
-}
-
 // MARK: - Card container
 
 extension View {
@@ -55,7 +43,7 @@ struct SectionHeader: View {
             if let subtitle {
                 Text(subtitle)
                     .font(.footnote)
-                    .foregroundStyle(.pulseSecondary)
+                    .foregroundStyle(Color.pulseSecondary)
             }
         }
         .padding(.top, 8)
@@ -70,10 +58,10 @@ struct ErrorCard: View {
         VStack(spacing: 10) {
             Image(systemName: "wifi.exclamationmark")
                 .font(.title2)
-                .foregroundStyle(.pulseSecondary)
+                .foregroundStyle(Color.pulseSecondary)
             Text(message)
                 .font(.callout)
-                .foregroundStyle(.pulseSecondary)
+                .foregroundStyle(Color.pulseSecondary)
                 .multilineTextAlignment(.center)
             Button("Try again", action: retry)
                 .buttonStyle(.borderedProminent)
