@@ -24,6 +24,8 @@ if str(_SRC) not in sys.path:
 
 # Celebrity move tracker lives in the sibling stock-data-scanner project; load by file path.
 _CELEB_PATH = _ROOT.parent / "stock-data-scanner" / "celebrity_priority.py"
+# Live market signals (earnings radar + volatility watch) for the tracker universe.
+_SIGNALS_PATH = _ROOT.parent / "stock-data-scanner" / "market_signals.py"
 
 
 @st.cache_resource
@@ -35,6 +37,22 @@ def _celebrity_tracker():
         if not _CELEB_PATH.exists():
             return None
         spec = importlib.util.spec_from_file_location("celebrity_priority_scan", _CELEB_PATH)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return mod
+    except Exception:
+        return None
+
+
+@st.cache_resource
+def _market_signals_mod():
+    """Load the market-signals module (earnings + volatility, Yahoo Finance)."""
+    try:
+        import importlib.util
+
+        if not _SIGNALS_PATH.exists():
+            return None
+        spec = importlib.util.spec_from_file_location("market_signals_scan", _SIGNALS_PATH)
         mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(mod)
         return mod
@@ -968,10 +986,25 @@ if scan_status.get("remote_note"):
 # ── Celebrity moves (tracker from stock-data-scanner) ────────────────────
 if st.session_state.get("show_celebrity"):
     _celeb = _celebrity_tracker()
-    ch1, ch2 = st.columns([11, 1])
+    ch1, ch2, ch3 = st.columns([10, 1, 1])
     with ch1:
         st.markdown("## ⭐ Celebrity moves")
     with ch2:
+        if st.button("↻", key="refresh_signals",
+                     help="Refresh earnings + volatility data (Yahoo Finance)"):
+            _smod = _market_signals_mod()
+            if _smod is not None:
+                try:
+                    with st.spinner("Refreshing market data…"):
+                        _smod.get_market_signals(
+                            [str(r.get("symbol") or "").upper()
+                             for r in (getattr(_celeb, "PRIORITY_ROWS", []) or [])],
+                            refresh=True,
+                        )
+                except Exception:
+                    pass
+            st.rerun()
+    with ch3:
         if st.button("✕", key="close_celebrity", help="Close celebrity moves"):
             st.session_state["show_celebrity"] = False
             st.rerun()
@@ -992,53 +1025,151 @@ if st.session_state.get("show_celebrity"):
             "Amounts for political households are disclosure brackets, not exact fills. "
             "Context only — not trade signals."
         )
-        _live: dict[str, tuple] = {}
-        try:
-            for _r in getattr(envelope, "results", None) or []:
-                _live[str(_r.symbol).upper()] = (_r.price, _r.changePct)
-        except Exception:
-            pass
-        _trows = []
-        for _r in _crows:
-            _sym = str(_r.get("symbol") or "").upper()
-            _lp, _lc = _live.get(_sym, (None, None))
-            _trows.append(
-                {
-                    "Rank": _r.get("rank") if _r.get("rank") is not None else "HM",
-                    "Ticker": _sym,
-                    "Company": _r.get("company"),
-                    "Investor / celebrity": _r.get("investor"),
-                    "Triggering move": _r.get("what_changed"),
-                    "Period": _r.get("period"),
-                    "Live price": _lp,
-                    "Live chg %": _lc,
-                }
-            )
-        _cdf = pd.DataFrame(_trows)
-        st.dataframe(
-            _cdf.style.format(
-                {
-                    "Live price": lambda v: _money(v),
-                    "Live chg %": lambda v: (
-                        f"{float(v):+.2f}%" if v is not None and not pd.isna(v) else "—"
-                    ),
-                },
-                na_rep="—",
-            ),
-            use_container_width=True,
-            hide_index=True,
+        _sig_mod = _market_signals_mod()
+        _sig_payload, _sig_fresh = None, False
+        _sig_syms = [str(_r.get("symbol") or "").upper() for _r in _crows]
+        if _sig_mod is not None:
+            try:
+                with st.spinner("Loading earnings + volatility data\u2026"):
+                    _sig_payload, _sig_fresh = _sig_mod.get_market_signals(_sig_syms)
+            except Exception:
+                _sig_payload, _sig_fresh = None, False
+        _tab_moves, _tab_earn, _tab_vol = st.tabs(
+            ["\u2b50 Moves", "\U0001f4c5 Earnings radar", "\U0001f30a Volatility watch"]
         )
-        _labels = [
-            (f"#{_r['rank']} · {_r['symbol']} — {_r['company']}" if _r.get("rank") is not None
-             else f"HM · {_r['symbol']} — {_r['company']}")
-            for _r in _crows
-        ]
-        _choice = st.selectbox("Select a move for full detail", _labels, key="celeb_detail")
-        _row = _crows[_labels.index(_choice)]
-        st.markdown(f"**Investor / celebrity:** {_md_esc(_row.get('investor'))}")
-        st.markdown(f"**Triggering move:** {_md_esc(_row.get('what_changed'))}")
-        st.markdown(f"**Period:** {_md_esc(_row.get('period'))}")
-        st.markdown(f"**Why it made the list:** {_md_esc(_row.get('why'))}")
+        with _tab_moves:
+            _live: dict[str, tuple] = {}
+            try:
+                for _r in getattr(envelope, "results", None) or []:
+                    _live[str(_r.symbol).upper()] = (_r.price, _r.changePct)
+            except Exception:
+                pass
+            _trows = []
+            for _r in _crows:
+                _sym = str(_r.get("symbol") or "").upper()
+                _lp, _lc = _live.get(_sym, (None, None))
+                _trows.append(
+                    {
+                        "Rank": _r.get("rank") if _r.get("rank") is not None else "HM",
+                        "Ticker": _sym,
+                        "Company": _r.get("company"),
+                        "Investor / celebrity": _r.get("investor"),
+                        "Triggering move": _r.get("what_changed"),
+                        "Period": _r.get("period"),
+                        "Live price": _lp,
+                        "Live chg %": _lc,
+                    }
+                )
+            _cdf = pd.DataFrame(_trows)
+            st.dataframe(
+                _cdf.style.format(
+                    {
+                        "Live price": lambda v: _money(v),
+                        "Live chg %": lambda v: (
+                            f"{float(v):+.2f}%" if v is not None and not pd.isna(v) else "—"
+                        ),
+                    },
+                    na_rep="—",
+                ),
+                use_container_width=True,
+                hide_index=True,
+            )
+            _labels = [
+                (f"#{_r['rank']} · {_r['symbol']} — {_r['company']}" if _r.get("rank") is not None
+                 else f"HM · {_r['symbol']} — {_r['company']}")
+                for _r in _crows
+            ]
+            _choice = st.selectbox("Select a move for full detail", _labels, key="celeb_detail")
+            _row = _crows[_labels.index(_choice)]
+            st.markdown(f"**Investor / celebrity:** {_md_esc(_row.get('investor'))}")
+            st.markdown(f"**Triggering move:** {_md_esc(_row.get('what_changed'))}")
+            st.markdown(f"**Period:** {_md_esc(_row.get('period'))}")
+            st.markdown(f"**Why it made the list:** {_md_esc(_row.get('why'))}")
+        with _tab_earn:
+            if _sig_payload is None:
+                st.info(
+                    "Earnings data isn't available "
+                    "(market-signals module missing or Yahoo Finance unreachable)."
+                )
+            else:
+                _asof = str(_sig_payload.get("as_of", "?"))
+                st.caption(
+                    f"Earnings dates via Yahoo Finance \u00b7 as of `{_asof}`"
+                    + ("" if _sig_fresh else " (stale \u2014 press \u21bb to refresh)")
+                    + ". Context only \u2014 not trade signals."
+                )
+                _erows = []
+                for _r in _crows:
+                    _sym = str(_r.get("symbol") or "").upper()
+                    _e = (_sig_payload.get("symbols", {}).get(_sym, {}) or {}).get("earnings", {}) or {}
+                    _up, _dt = _e.get("upcoming"), _e.get("days_to")
+                    _lr, _ds = _e.get("last_reported"), _e.get("days_since")
+                    if _dt is not None and _dt <= 14:
+                        _edate, _when, _stat = _up, f"in {_dt} day{'s' if _dt != 1 else ''}", "\U0001f4c5 Upcoming"
+                    elif _ds is not None and _ds <= 7:
+                        _edate, _when, _stat = _lr, f"{_ds} day{'s' if _ds != 1 else ''} ago", "\U0001f195 Just reported"
+                    else:
+                        _edate, _when, _stat = (_up or "\u2014"), "\u2014", "\u2014"
+                    _erows.append({
+                        "Ticker": _sym,
+                        "Company": _r.get("company"),
+                        "Earnings date": _edate,
+                        "When": _when,
+                        "Status": _stat,
+                        "_sort": _dt if isinstance(_dt, int) else 9999,
+                    })
+                _erows.sort(key=lambda r: (r["_sort"], r["Ticker"]))
+                _edf = pd.DataFrame([{k: v for k, v in r.items() if k != "_sort"} for r in _erows])
+                st.dataframe(_edf, use_container_width=True, hide_index=True)
+        with _tab_vol:
+            if _sig_payload is None:
+                st.info(
+                    "Volatility data isn't available "
+                    "(market-signals module missing or Yahoo Finance unreachable)."
+                )
+            else:
+                _asof = str(_sig_payload.get("as_of", "?"))
+                st.caption(
+                    f"Price action via Yahoo Finance \u00b7 as of `{_asof}`"
+                    + ("" if _sig_fresh else " (stale \u2014 press \u21bb to refresh)")
+                    + ". \u26a1 = flagged: \u22655% day in last 10 sessions, \u00b14% last session, "
+                    + "20d realized vol \u226560% ann., or ATR(14) \u22654% of price. "
+                    + "Context only \u2014 not trade signals."
+                )
+                _vrows = []
+                for _r in _crows:
+                    _sym = str(_r.get("symbol") or "").upper()
+                    _v = (_sig_payload.get("symbols", {}).get(_sym, {}) or {}).get("volatility", {}) or {}
+                    _flags = ("\u26a1 " + "; ".join(_v.get("reasons", []))) if _v.get("volatile") else "\u2014"
+                    _vrows.append({
+                        "Ticker": _sym,
+                        "Company": _r.get("company"),
+                        "Last": _v.get("last"),
+                        "1d %": _v.get("chg_1d_pct"),
+                        "5d %": _v.get("chg_5d_pct"),
+                        "20d vol %": _v.get("vol_20d_ann_pct"),
+                        "Max 1d (10d) %": _v.get("max_1d_move_10d_pct"),
+                        "ATR14 %": _v.get("atr14_pct"),
+                        "Flags": _flags,
+                        "_sort": -(_v.get("max_1d_move_10d_pct") or 0),
+                    })
+                _vrows.sort(key=lambda r: (r["_sort"], r["Ticker"]))
+                _vdf = pd.DataFrame([{k: v for k, v in r.items() if k != "_sort"} for r in _vrows])
+                st.dataframe(
+                    _vdf.style.format(
+                        {
+                            "Last": lambda v: _money(v),
+                            "1d %": lambda v: (f"{float(v):+.2f}%" if v is not None and not pd.isna(v) else "\u2014"),
+                            "5d %": lambda v: (f"{float(v):+.2f}%" if v is not None and not pd.isna(v) else "\u2014"),
+                            "20d vol %": lambda v: (f"{float(v):.1f}%" if v is not None and not pd.isna(v) else "\u2014"),
+                            "Max 1d (10d) %": lambda v: (f"{float(v):.2f}%" if v is not None and not pd.isna(v) else "\u2014"),
+                            "ATR14 %": lambda v: (f"{float(v):.2f}%" if v is not None and not pd.isna(v) else "\u2014"),
+                        },
+                        na_rep="\u2014",
+                    ),
+                    use_container_width=True,
+                    hide_index=True,
+                )
 
 
 # ── Tabs ─────────────────────────────────────────────────────────────────
