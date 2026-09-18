@@ -22,6 +22,30 @@ _SRC = _ROOT / "src"
 if str(_SRC) not in sys.path:
     sys.path.insert(0, str(_SRC))
 
+# Celebrity move tracker lives in the sibling stock-data-scanner project; load by file path.
+_CELEB_PATH = _ROOT.parent / "stock-data-scanner" / "celebrity_priority.py"
+
+
+@st.cache_resource
+def _celebrity_tracker():
+    """Load the celebrity move tracker module (ranked 13F / disclosure moves)."""
+    try:
+        import importlib.util
+
+        if not _CELEB_PATH.exists():
+            return None
+        spec = importlib.util.spec_from_file_location("celebrity_priority_scan", _CELEB_PATH)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return mod
+    except Exception:
+        return None
+
+
+def _md_esc(v: Any) -> str:
+    """Escape $ so Streamlit markdown never treats tracker text as KaTeX math."""
+    return str(v or "").replace("$", "\\$")
+
 from options_seller.config import load_defaults
 from options_seller.execution.paper import PaperExecutor
 from options_seller.models.orders import OrderPlan
@@ -518,6 +542,15 @@ with st.sidebar:
         )
         st.caption("Set SCANNER_UI_URL when Stock Data Scanner publishes a new base.")
 
+    _celeb_open = bool(st.session_state.get("show_celebrity"))
+    if st.button(
+        "✕ Close celebrity moves" if _celeb_open else "⭐ Celebrity moves",
+        use_container_width=True,
+        help="Ranked celebrity / fund portfolio moves from the Stock Data Scanner — shown inline below.",
+    ):
+        st.session_state["show_celebrity"] = not _celeb_open
+        st.rerun()
+
     if st.button("🔄 Refresh scan data", use_container_width=True):
         # Fast path: poll /api/scan or re-read local JSON — never Yahoo / full recompute
         _env, _status, _meta = refresh_scan_data()
@@ -874,6 +907,82 @@ st.markdown(
 )
 if scan_status.get("remote_note"):
     st.caption(scan_status["remote_note"])
+
+
+# ── Celebrity moves (tracker from stock-data-scanner) ────────────────────
+if st.session_state.get("show_celebrity"):
+    _celeb = _celebrity_tracker()
+    ch1, ch2 = st.columns([11, 1])
+    with ch1:
+        st.markdown("## ⭐ Celebrity moves")
+    with ch2:
+        if st.button("✕", key="close_celebrity", help="Close celebrity moves"):
+            st.session_state["show_celebrity"] = False
+            st.rerun()
+    if _celeb is None:
+        st.info(
+            "Celebrity tracker data isn't available here "
+            "(stock-data-scanner/celebrity_priority.py not found in this checkout)."
+        )
+    else:
+        _crows = list(getattr(_celeb, "PRIORITY_ROWS", []) or [])
+        _cdate = getattr(_celeb, "SCAN_DATE", "?")
+        _n_pri = sum(1 for r in _crows if not r.get("honorable"))
+        _n_hon = sum(1 for r in _crows if r.get("honorable"))
+        st.caption(
+            f"Ranked celebrity / fund portfolio moves encoded from the {_cdate} scan report "
+            f"({_n_pri} ranked + {_n_hon} honorable mentions). "
+            "Many 13Fs as of 2026-06-30 (~2.5 mo lag); Pelosi / STOCK Act disclosures can lag ~45 days. "
+            "Amounts for political households are disclosure brackets, not exact fills. "
+            "Context only — not trade signals."
+        )
+        _live: dict[str, tuple] = {}
+        try:
+            for _r in getattr(envelope, "results", None) or []:
+                _live[str(_r.symbol).upper()] = (_r.price, _r.changePct)
+        except Exception:
+            pass
+        _trows = []
+        for _r in _crows:
+            _sym = str(_r.get("symbol") or "").upper()
+            _lp, _lc = _live.get(_sym, (None, None))
+            _trows.append(
+                {
+                    "Rank": _r.get("rank") if _r.get("rank") is not None else "HM",
+                    "Ticker": _sym,
+                    "Company": _r.get("company"),
+                    "Investor / celebrity": _r.get("investor"),
+                    "Triggering move": _r.get("what_changed"),
+                    "Period": _r.get("period"),
+                    "Live price": _lp,
+                    "Live chg %": _lc,
+                }
+            )
+        _cdf = pd.DataFrame(_trows)
+        st.dataframe(
+            _cdf.style.format(
+                {
+                    "Live price": lambda v: _money(v),
+                    "Live chg %": lambda v: (
+                        f"{float(v):+.2f}%" if v is not None and not pd.isna(v) else "—"
+                    ),
+                },
+                na_rep="—",
+            ),
+            use_container_width=True,
+            hide_index=True,
+        )
+        _labels = [
+            (f"#{_r['rank']} · {_r['symbol']} — {_r['company']}" if _r.get("rank") is not None
+             else f"HM · {_r['symbol']} — {_r['company']}")
+            for _r in _crows
+        ]
+        _choice = st.selectbox("Select a move for full detail", _labels, key="celeb_detail")
+        _row = _crows[_labels.index(_choice)]
+        st.markdown(f"**Investor / celebrity:** {_md_esc(_row.get('investor'))}")
+        st.markdown(f"**Triggering move:** {_md_esc(_row.get('what_changed'))}")
+        st.markdown(f"**Period:** {_md_esc(_row.get('period'))}")
+        st.markdown(f"**Why it made the list:** {_md_esc(_row.get('why'))}")
 
 
 # ── Tabs ─────────────────────────────────────────────────────────────────
