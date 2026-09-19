@@ -413,6 +413,21 @@ async def portfolio_activity():
     return cached(30, "portfolio:activity", _build)
 
 
+@app.get("/api/news")
+@_api
+async def news(refresh: bool = Query(False)):
+    """RSS headlines + product ideas for the iOS/PWA News tab."""
+
+    def _build():
+        from api import news as news_mod
+
+        return news_mod.news_feed(refresh=bool(refresh))
+
+    # Short TTL when refresh requested; otherwise match mobile 10m cadence
+    ttl = 5 if refresh else 600
+    return cached(ttl, f"news:feed:{int(bool(refresh))}", _build)
+
+
 @app.get("/api/insights/celebrity")
 @_api
 async def insights_celebrity():
@@ -463,7 +478,7 @@ async def insights_earnings():
     def _build():
         symbols = _celeb_symbols()
         if _signals is None or not symbols:
-            return {"error": "market signals module not available"}
+            return {"as_of": _now_iso(), "fresh": False, "rows": [], "warning": "market signals module not available"}
         payload, fresh = _signals_payload(symbols)
         if payload is None:
             return {"error": "earnings data unavailable (Yahoo Finance unreachable)"}
@@ -507,7 +522,7 @@ async def insights_volatility():
     def _build():
         symbols = _celeb_symbols()
         if _signals is None or not symbols:
-            return {"error": "market signals module not available"}
+            return {"as_of": _now_iso(), "fresh": False, "rows": [], "warning": "market signals module not available"}
         payload, fresh = _signals_payload(symbols)
         if payload is None:
             return {"error": "volatility data unavailable (Yahoo Finance unreachable)"}

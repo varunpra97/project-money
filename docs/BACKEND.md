@@ -65,6 +65,7 @@ All routes work at `/api/...` on :8504 and at `/pulse/api/...` via Caddy.
 
 | Method | Path | Notes |
 |--------|------|-------|
+| GET | `/api/news` | RSS headlines + product ideas (iOS News tab); `?refresh=true` |
 | GET | `/api/health` | Liveness; includes `scan_feed_reachable` |
 | GET | `/api/risk/status` | Paper book risk vs **$50k** hard cap; soft warn **80% ($40k)** |
 | GET | `/api/scan` | Proxy/fallback to scan envelope (`stock-data-scanner.scan/v0.1`) |
