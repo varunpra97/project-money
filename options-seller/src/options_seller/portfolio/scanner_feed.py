@@ -30,7 +30,7 @@ from options_seller.selector import Selection, select_and_build
 from options_seller.strategies.base import should_skip_earnings
 
 DEFAULT_SCANNER_BASE_URL = "https://views-pill-radical-templates.trycloudflare.com"
-DEFAULT_SCANNER_JSON_PATH = Path("/workspace/stock-data-scanner/scan-latest.json")
+DEFAULT_SCANNER_JSON_PATH = Path(__file__).resolve().parents[4] / "stock-data-scanner" / "scan-latest.json"
 FALLBACK_SCAN_PATH = Path(__file__).resolve().parents[3] / "examples" / "scan-latest.json"
 REMOTE_JSON_PATHS = ("/api/scan", "/scan-latest.json")
 

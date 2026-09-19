@@ -1,6 +1,7 @@
 import Foundation
 
 enum APIError: LocalizedError {
+    case server(String)
     case notConfigured
     case badURL(String)
     case http(Int)
@@ -9,6 +10,8 @@ enum APIError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
+        case .server(let message):
+            return message
         case .notConfigured:
             return "Set AppConfig.baseURL to your API's public URL, then rebuild."
         case .badURL(let path):
@@ -60,8 +63,14 @@ final class APIClient {
             diskCapacity: 128 * 1024 * 1024
         )
         cfg.requestCachePolicy = .reloadIgnoringLocalCacheData
-        cfg.timeoutIntervalForRequest = 20
+        cfg.timeoutIntervalForRequest = 35
         self.session = URLSession(configuration: cfg)
+    }
+
+    func invalidateCache() {
+        lock.lock()
+        defer { lock.unlock() }
+        cache.removeAll()
     }
 
     private func cachedData(for key: String) -> Data? {
@@ -102,13 +111,15 @@ final class APIClient {
         }
         do {
             let (data, resp) = try await session.data(from: u)
+            if let payload = try? JSONSerialization.jsonObject(with: data) as? [String: Any], let message = (payload["error"] ?? payload["detail"]) as? String { throw APIError.server(message) }
             guard let http = resp as? HTTPURLResponse,
                   (200..<300).contains(http.statusCode)
             else {
                 throw APIError.http((resp as? HTTPURLResponse)?.statusCode ?? -1)
             }
+            let decoded: T = try decode(data)
             store(data, for: key, ttl: ttl)
-            return try decode(data)
+            return decoded
         } catch let apiErr as APIError {
             throw apiErr
         } catch {

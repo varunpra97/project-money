@@ -228,10 +228,14 @@ struct Candidate: Decodable, Identifiable {
 struct Bar: Decodable {
     let t: TimeInterval
     let c: Double
+    let o: Double?
+    let h: Double?
+    let l: Double?
+    let v: Double?
 
     enum CodingKeys: String, CodingKey {
         case t
-        case c
+        case c, o, h, l, v
     }
 }
 
@@ -247,4 +251,13 @@ struct QuoteResponse: Decodable {
         case chgPct = "chg_pct"
         case bars
     }
+}
+
+struct SymbolDetails: Decodable {
+    let symbol: String
+    let as_of: String
+    let source: String
+    let volatility: VolatilityRow?
+    let earnings: EarningsRow?
+    let warnings: [String]
 }

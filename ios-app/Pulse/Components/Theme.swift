@@ -71,7 +71,7 @@ struct ErrorCard: View {
     }
 }
 
-/// Small pill badge, e.g. "in 7 days", "⚡ Volatile".
+/// Small pill badge, e.g. "in 7 days".
 struct Pill: View {
     let text: String
     let color: Color

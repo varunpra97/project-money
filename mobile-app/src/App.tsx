@@ -1,11 +1,17 @@
 import { Component, Suspense, lazy, useState, type ReactNode } from "react";
 
+import Assistant from "./components/Assistant";
+
 const Home = lazy(() => import("./tabs/Home"));
 const Discover = lazy(() => import("./tabs/Discover"));
 const Search = lazy(() => import("./tabs/Search"));
 const Activity = lazy(() => import("./tabs/Activity"));
 
-const TABS = [
+const Performance = lazy(() => import("./tabs/Performance"));
+const News = lazy(() => import("./tabs/News"));
+const TABS_UNSORTED = [
+  { key: "performance", label: "Stats", icon: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M4 20V10m8 10V4m8 16V8"/></svg> },
+  { key: "news", label: "News", icon: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M7 8h10M7 12h10M7 16h6"/></svg> },
   {
     key: "home", label: "Home",
     icon: (a: boolean) => (
@@ -40,6 +46,8 @@ const TABS = [
   },
 ] as const;
 
+const ORDER = ["home", "performance", "news", "discover", "search", "activity"];
+const TABS = [...TABS_UNSORTED].sort((a,b) => ORDER.indexOf(a.key)-ORDER.indexOf(b.key));
 type TabKey = (typeof TABS)[number]["key"];
 
 function TabSkeleton() {
@@ -83,12 +91,19 @@ class TabErrorBoundary extends Component<{ children: ReactNode; tab: string }, {
 export default function App() {
   const [tab, setTab] = useState<TabKey>("home");
 
+  const [assistantOpen, setAssistantOpen] = useState(false);
+  const params = new URLSearchParams(location.search);
+  if (params.get("assistant") === "1") return <Assistant standalone screen={params.get("screen") || "iOS app"}/>;
   return (
-    <div className="app">
+    <div className={`app ${assistantOpen ? "with-assistant" : ""}`}>
+      <button className="assistant-launch" onClick={()=>setAssistantOpen(v=>!v)} aria-expanded={assistantOpen}>✦ Assistant</button>
+      {assistantOpen && <Assistant screen={tab} onClose={()=>setAssistantOpen(false)}/>}
       <main className="main" key={tab}>
         <TabErrorBoundary tab={tab} key={tab}>
           <Suspense fallback={<TabSkeleton />}>
             {tab === "home" && <Home />}
+            {tab === "performance" && <Performance />}
+            {tab === "news" && <News />}
             {tab === "discover" && <Discover />}
             {tab === "search" && <Search />}
             {tab === "activity" && <Activity />}

@@ -1,3 +1,4 @@
+import LivePrice from "../components/LivePrice";
 import { lazy, Suspense, useMemo, useState } from "react";
 import { RANGES, useApi } from "../lib/api";
 import { cls, fmtDate, money, moneySigned, pctPts } from "../lib/fmt";
@@ -40,12 +41,13 @@ function HeroChart({ symbol, label }: { symbol: string; label: string }) {
 
   return (
     <div>
+      <LivePrice symbol={symbol}/>
       <div className="hero-label">{label}</div>
       <div className="hero-value">{shown ? money(shown.c) : <span className="dim">—</span>}</div>
       <div className={`hero-sub ${scrub ? "" : cls(q.data?.chg_pct ?? (trendUp ? 1 : -1))}`}>
         {scrub ? (
           <span className="muted">
-            {new Date(scrub.t).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+            {new Date(scrub.t * 1000).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
           </span>
         ) : q.data ? (
           <>
@@ -133,6 +135,7 @@ export default function Home() {
 
   return (
     <div>
+      {(s.error || pos.error) && <div className="notice" role="alert">{s.error || pos.error} <button onClick={()=>{s.refresh();pos.refresh();}}>Retry</button></div>}
       {(s.demo || pos.demo) && <span className="demo-pill">DEMO DATA</span>}
       <div className="hero-label">Account value</div>
       <div className="hero-value">{money(s.data?.account_value)}</div>

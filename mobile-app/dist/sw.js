@@ -1,5 +1,5 @@
 /* Pulse service worker: app-shell caching + network-first API. */
-const CACHE = "pulse-shell-v1";
+const CACHE = "pulse-shell-v3";
 const SHELL = ["./", "./index.html", "./manifest.json", "./icon-192.png"];
 
 self.addEventListener("install", (event) => {
@@ -21,6 +21,9 @@ self.addEventListener("fetch", (event) => {
   if (request.method !== "GET") return;
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
+
+  // Chat credentials and conversations must never enter the offline cache.
+  if (url.pathname.includes("/api/assistant")) return;
 
   if (url.pathname.includes("/api/")) {
     // Network-first for API: fresh data when online, cached when not.

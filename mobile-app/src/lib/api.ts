@@ -1,168 +1,38 @@
 import { useEffect, useRef, useState } from "react";
-import {
-  company, demoActivity, demoCandidates, demoCelebrity, demoEarnings,
-  demoPositions, demoQuote, demoSummary, demoVolatility,
-} from "./demo";
-
-/**
- * API layer: same-origin /api/* with in-memory + localStorage cache,
- * stale-while-revalidate, and graceful demo fallback when the backend
- * is unreachable. Never throws to components; never a blank screen.
- */
-
-const TTL: Record<string, number> = {
-  "/api/health": 30e3,
-  "/api/portfolio/summary": 30e3,
-  "/api/portfolio/positions": 60e3,
-  "/api/portfolio/activity": 120e3,
-  "/api/insights/celebrity": 300e3,
-  "/api/insights/earnings": 300e3,
-  "/api/insights/volatility": 300e3,
-  "/api/candidates": 300e3,
-  "/api/quote": 60e3,
-};
-
-const mem = new Map<string, { ts: number; data: any }>();
-const API_DOWN_KEY = "pulse:api-down";
-
-function ttlFor(path: string): number {
-  for (const k of Object.keys(TTL)) if (path.startsWith(k)) return TTL[k];
-  return 60e3;
-}
-function cacheKey(path: string) { return "pulse:cache:" + path; }
-
-function readCache(path: string): { ts: number; data: any } | null {
-  const m = mem.get(path);
-  if (m) return m;
-  try {
-    const raw = localStorage.getItem(cacheKey(path));
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    mem.set(path, parsed);
-    return parsed;
-  } catch { return null; }
-}
-
-function writeCache(path: string, data: any) {
-  const entry = { ts: Date.now(), data };
-  mem.set(path, entry);
-  try { localStorage.setItem(cacheKey(path), JSON.stringify(entry)); } catch { /* quota */ }
-}
-
-async function fetchJson(path: string, timeoutMs = 8000): Promise<any> {
-  const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), timeoutMs);
-  // The app may be served from / (local dev) or /pulse (public tunnel).
-  let base = "";
-  try {
-    const p = window.location.pathname;
-    if (p === "/pulse" || p.startsWith("/pulse/")) base = "/pulse";
-  } catch { /* ignore */ }
-  try {
-    const res = await fetch(base + path, { signal: ctrl.signal, headers: { accept: "application/json" } });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return await res.json();
-  } finally { clearTimeout(t); }
-}
-
-let apiDown: boolean | null = null;
-function apiDownCached(): boolean {
-  if (apiDown !== null) return apiDown;
-  try {
-    const raw = localStorage.getItem(API_DOWN_KEY);
-    if (!raw) return false;
-    const { ts, down } = JSON.parse(raw);
-    if (Date.now() - ts < 60e3) { apiDown = down; return down; }
-  } catch { /* ignore */ }
-  return false;
-}
-function setApiDown(down: boolean) {
-  apiDown = down;
-  try { localStorage.setItem(API_DOWN_KEY, JSON.stringify({ ts: Date.now(), down })); } catch { /* ignore */ }
-}
-
-/** Demo data per endpoint when the API is unreachable. */
-function demoFor(path: string): any {
-  if (path === "/api/portfolio/summary") return demoSummary();
-  if (path === "/api/portfolio/positions") return demoPositions();
-  if (path === "/api/portfolio/activity") return demoActivity();
-  if (path === "/api/insights/celebrity") return demoCelebrity();
-  if (path === "/api/insights/earnings") return demoEarnings();
-  if (path === "/api/insights/volatility") return demoVolatility();
-  if (path === "/api/candidates") return demoCandidates();
-  const q = path.match(/^\/api\/quote\/([^?]+)\??.*?(?:range=([^&]+))?/);
-  if (q) return demoQuote(decodeURIComponent(q[1]), q[2] || "1d");
-  return null;
-}
-
-export interface ApiState<T> {
-  data: T | null;
-  loading: boolean;
-  demo: boolean;
-  stale: boolean;
-  refresh: () => void;
-}
-
-export function useApi<T>(path: string | null, opts?: { timeoutMs?: number }): ApiState<T> {
-  const [state, setState] = useState<ApiState<T>>(() => {
-    if (!path) return { data: null, loading: false, demo: false, stale: false, refresh: () => {} };
-    const c = readCache(path);
-    return {
-      data: (c?.data ?? null) as T | null,
-      loading: !c,
-      demo: false,
-      stale: !!c && Date.now() - c.ts > ttlFor(path),
-      refresh: () => {},
-    };
-  });
-  const nonce = useRef(0);
-
-  const load = (background: boolean) => {
-    if (!path) return;
-    const n = ++nonce.current;
-    const cached = readCache(path);
-    const ttl = ttlFor(path);
-    const freshEnough = cached && Date.now() - cached.ts < ttl;
-    if (freshEnough && !background) return; // already have fresh data
-    if (!background) setState(s => ({ ...s, loading: !cached }));
-
-    (async () => {
-      // Fast path: API known down recently -> demo immediately.
-      if (apiDownCached() && !cached) {
-        if (nonce.current === n)
-          setState(s => ({ ...s, data: (demoFor(path) as T), loading: false, demo: true, stale: false, refresh: s.refresh }));
-        return;
-      }
-      try {
-        const data = await fetchJson(path, opts?.timeoutMs);
-        setApiDown(false);
-        writeCache(path, data);
-        if (nonce.current === n)
-          setState(s => ({ ...s, data, loading: false, demo: false, stale: false, refresh: s.refresh }));
-      } catch {
-        if (nonce.current !== n) return;
-        if (cached) {
-          // Keep stale data visible; mark stale, retry demo only if nothing at all.
-          setState(s => ({ ...s, loading: false, stale: true, refresh: s.refresh }));
-          // One cheap health probe to decide demo mode for other endpoints.
-          fetchJson("/api/health", 2500).then(() => setApiDown(false)).catch(() => setApiDown(true));
-        } else {
-          setApiDown(true);
-          setState(s => ({ ...s, data: (demoFor(path) as T), loading: false, demo: true, stale: false, refresh: s.refresh }));
-        }
-      }
-    })();
-  };
-
-  useEffect(() => {
-    if (!path) return;
-    load(false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [path]);
-
-  const refresh = () => load(true);
-  // keep refresh stable-ish in returned object
-  return { ...state, refresh };
+import { company } from "./demo";
+export interface ApiState<T> { data:T|null; loading:boolean; demo:boolean; stale:boolean; error:string|null; refresh:()=>void; }
+const memory = new Map<string, any>();
+export function useApi<T>(path:string|null, opts?:{timeoutMs?:number}):ApiState<T> {
+  const [version,setVersion]=useState(0);
+  const [state,setState]=useState<{data:T|null;loading:boolean;stale:boolean;error:string|null}>({data:null,loading:!!path,stale:false,error:null});
+  const current=useRef(path);current.current=path;
+  useEffect(()=>{
+    if(!path){setState({data:null,loading:false,stale:false,error:null});return;}
+    let active=true;
+    let controller=new AbortController();
+    let inflight=false;
+    const initial=memory.get(path)||null;
+    setState({data:initial,loading:!initial,stale:!!initial,error:null});
+    async function load(force=false){
+      if(inflight)return;
+      inflight=true;controller=new AbortController();
+      const timeout=setTimeout(()=>controller.abort(),opts?.timeoutMs??35000);
+      try{
+        const base=location.pathname.startsWith("/pulse")?"/pulse":"";
+        const url=base+path+(force?(path!.includes("?")?"&":"?")+"refresh=true":"");
+        const res=await fetch(url,{signal:controller.signal,cache:"no-store"});
+        const data=await res.json();
+        if(!res.ok||data.error)throw new Error(data.error||data.detail||"The provider is temporarily unavailable.");
+        if(active&&current.current===path){memory.set(path!,data);setState({data,loading:false,stale:false,error:null});}
+      }catch(e){if(active){const error=e instanceof Error?e.message:"Unable to fetch data";setState({data:memory.get(path!)||null,loading:false,stale:memory.has(path!),error});}}
+      finally{clearTimeout(timeout);inflight=false;}
+    }
+    load(version>0);
+    const poll=setInterval(()=>{if(document.visibilityState=== "visible")load();},path.includes("/quote/")?20000:60000);
+    const onFocus=()=>load();window.addEventListener("focus",onFocus);
+    return()=>{active=false;clearInterval(poll);controller.abort();window.removeEventListener("focus",onFocus);};
+  },[path,version,opts?.timeoutMs]);
+  return {...state,demo:false,refresh:()=>setVersion(v=>v+1)};
 }
 
 /** Find a company's display name for a symbol (API data preferred, demo map fallback). */

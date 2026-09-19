@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct ActivityView: View {
+    @Environment(\.scenePhase) private var scenePhase
     @State private var items: [ActivityItem] = []
     @State private var summary: PortfolioSummary?
     @State private var error: String?
@@ -38,8 +39,15 @@ struct ActivityView: View {
             }
             .background(Color.pulseBg)
             .navigationTitle("Activity")
-            .refreshable { await load() }
-            .task { await load() }
+            .refreshable {
+                APIClient.shared.invalidateCache()
+                await load()
+            }
+            .task(id: scenePhase) {
+                guard scenePhase == .active else { return }
+                APIClient.shared.invalidateCache()
+                await load()
+            }
         }
     }
 

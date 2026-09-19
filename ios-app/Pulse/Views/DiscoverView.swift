@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct DiscoverView: View {
+    @Environment(\.scenePhase) private var scenePhase
     @State private var celebrity: CelebrityResponse?
     @State private var earnings: EarningsResponse?
     @State private var volatility: VolatilityResponse?
@@ -30,8 +31,15 @@ struct DiscoverView: View {
             }
             .background(Color.pulseBg)
             .navigationTitle("Discover")
-            .refreshable { await load() }
-            .task { await load() }
+            .refreshable {
+                APIClient.shared.invalidateCache()
+                await load()
+            }
+            .task(id: scenePhase) {
+                guard scenePhase == .active else { return }
+                APIClient.shared.invalidateCache()
+                await load()
+            }
         }
     }
 

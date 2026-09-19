@@ -1,12 +1,14 @@
 import Foundation
 
-/// Single place for app configuration.
-enum AppConfig {
-    /// Your Pulse API's public URL, e.g. "https://abc123.trycloudflare.com".
-    /// No trailing slash. Leave empty to see the in-app setup screen.
-    ///
-    /// NOTE: tunnel URLs (trycloudflare.com) change when the backend restarts —
-    /// if the app suddenly can't reach the API, paste the fresh URL here and rebuild.
-    /// The API is served under the /pulse path on the public host.
+struct AppConfig {
+    // Debug builds use this Mac for development; release clients use the canonical backend.
+    #if DEBUG
+      #if targetEnvironment(simulator)
+      static let baseURL = "http://127.0.0.1:8505"
+      #else
+      static let baseURL = "http://10.0.0.160:8505/pulse"
+      #endif
+    #else
     static let baseURL = "https://views-pill-radical-templates.trycloudflare.com/pulse"
+    #endif
 }

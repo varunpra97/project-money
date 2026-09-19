@@ -17,6 +17,7 @@ export default function Activity() {
 
   return (
     <div>
+      {(s.error || a.error) && <div className="notice" role="alert">{s.error || a.error} <button onClick={()=>{s.refresh();a.refresh();}}>Retry</button></div>}
       <div className="screen-title">Activity</div>
       {(s.demo || a.demo) && <div style={{ marginTop: 8 }}><span className="demo-pill">DEMO DATA</span></div>}
 

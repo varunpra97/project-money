@@ -1,3 +1,4 @@
+import LivePrice from "../components/LivePrice";
 import { lazy, Suspense, useState } from "react";
 import { RANGES, useApi } from "../lib/api";
 import { cls, fmtDate, money, moneySigned, pctPts } from "../lib/fmt";
@@ -20,16 +21,15 @@ export default function Search() {
   const q = useApi<{ symbol: string; price: number; chg_pct: number; bars: { t: number; c: number }[] }>(
     symbol ? `/api/quote/${symbol}?range=${range.param}` : null
   );
-  const vol = useApi<{ rows: VolRow[] }>("/api/insights/volatility");
-  const earn = useApi<{ rows: EarnRow[] }>("/api/insights/earnings");
+  const detail = useApi<{volatility:VolRow|null;earnings:EarnRow|null;warnings:string[];as_of:string;source:string}>(symbol ? `/api/symbol/${symbol}` : null);
 
   const submit = () => {
     const s = input.trim().toUpperCase().replace(/[^A-Z.\-]/g, "");
-    if (s) { setSymbol(s); setScrub(null); }
+    if (s) { if(s===symbol){q.refresh();detail.refresh();} setSymbol(s); setScrub(null); }
   };
 
-  const vrow = symbol ? (vol.data?.rows ?? []).find((r) => r.symbol.toUpperCase() === symbol) : undefined;
-  const erow = symbol ? (earn.data?.rows ?? []).find((r) => r.symbol.toUpperCase() === symbol) : undefined;
+  const vrow = detail.data?.volatility;
+  const erow = detail.data?.earnings;
   const bars = q.data?.bars ?? [];
   const shown = scrub ?? (bars.length ? bars[bars.length - 1] : null);
 
@@ -48,7 +48,9 @@ export default function Search() {
         />
         <button type="submit">Go</button>
       </form>
-      {(q.demo || vol.demo) && symbol && <span className="demo-pill">DEMO DATA</span>}
+      {symbol && <button className="subtle-button" onClick={()=>{q.refresh();detail.refresh();}}>Refresh from source</button>}
+      {(q.error || detail.error) && <div className="notice">{q.error || detail.error}{q.stale ? " Showing the last successful response." : ""}</div>}
+      {detail.data && <p className="caption">{detail.data.source} · fetched {new Date(detail.data.as_of).toLocaleString()}. {detail.data.warnings.join(" ")}</p>}
 
       {!symbol ? (
         <div className="empty">
@@ -56,16 +58,17 @@ export default function Search() {
         </div>
       ) : q.loading && !q.data ? (
         <><div className="sk" style={{ height: 90, marginBottom: 12 }} /><div className="sk" style={{ height: 220, marginBottom: 12 }} /><div className="sk" style={{ height: 120 }} /></>
-      ) : !q.data || bars.length < 2 ? (
+      ) : !q.data ? (
         <div className="empty">No quote for {symbol}.{q.demo ? " (demo universe is limited)" : " Check the symbol and try again."}</div>
       ) : (
         <div className="quote-head">
+          <LivePrice symbol={q.data.symbol}/>
           <div className="sym">{q.data.symbol}</div>
           <div className="co">{vrow?.company ?? erow?.company ?? ""}</div>
           <div className="px">{shown ? money(shown.c) : "—"}</div>
           <div className={`chg ${scrub ? "" : cls(q.data.chg_pct)}`}>
             {scrub
-              ? new Date(scrub.t).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+              ? new Date(scrub.t * 1000).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
               : <>{moneySigned(q.data.price - q.data.price / (1 + q.data.chg_pct / 100))} ({pctPts(q.data.chg_pct)}) {range.key}</>}
           </div>
 

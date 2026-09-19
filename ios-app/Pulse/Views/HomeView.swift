@@ -2,6 +2,7 @@ import SwiftUI
 import Charts
 
 struct HomeView: View {
+    @Environment(\.scenePhase) private var scenePhase
     @State private var summary: PortfolioSummary?
     @State private var positions: [Position] = []
     @State private var quote: QuoteResponse?
@@ -36,6 +37,7 @@ struct HomeView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     headerSection
+                    LiveStockPrice(symbol: chartSymbol)
                     chartSection
                     positionsSection
                     if let error {
@@ -48,8 +50,23 @@ struct HomeView: View {
             }
             .background(Color.pulseBg)
             .navigationTitle("Investing")
-            .refreshable { await load() }
-            .task { await load() }
+            .refreshable {
+                APIClient.shared.invalidateCache()
+                await load()
+            }
+            .task(id: scenePhase) {
+                guard scenePhase == .active else { return }
+                APIClient.shared.invalidateCache()
+                await load()
+            }
+            .task(id: "refresh-\(scenePhase)") {
+                guard scenePhase == .active else { return }
+                while !Task.isCancelled {
+                    do { try await Task.sleep(for: .seconds(20)) } catch { return }
+                    APIClient.shared.invalidateCache()
+                    await loadQuote()
+                }
+            }
             .onChange(of: range) { _, _ in
                 selectedDate = nil
                 Task { await loadQuote() }

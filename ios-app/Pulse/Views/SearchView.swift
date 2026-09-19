@@ -2,7 +2,10 @@ import SwiftUI
 import Charts
 
 struct SearchView: View {
+    @Environment(\.scenePhase) private var scenePhase
     @State private var symbol = ""
+    @State private var requestID = UUID()
+    @State private var statsNote = ""
     @State private var quote: QuoteResponse?
     @State private var range: QuoteRange = .oneDay
     @State private var selectedDate: Date?
@@ -29,10 +32,13 @@ struct SearchView: View {
                     if loading {
                         loadingState
                     } else if let q = quote {
+                        LiveStockPrice(symbol: q.symbol)
                         quoteHeader(q)
                         chartSection(q)
                         statsGrid
                         flagsSection
+                        if !statsNote.isEmpty { Text(statsNote).font(.caption).foregroundStyle(Color.pulseSecondary) }
+                        if let error { ErrorCard(message: error) { Task { await search() } } }
                     } else if let error {
                         ErrorCard(message: error) {
                             Task { await search() }
@@ -45,6 +51,14 @@ struct SearchView: View {
             }
             .background(Color.pulseBg)
             .navigationTitle("Search")
+            .refreshable { APIClient.shared.invalidateCache(); await search() }
+            .task(id: "refresh-\(scenePhase)") {
+                guard scenePhase == .active else { return }
+                while !Task.isCancelled {
+                    do { try await Task.sleep(for: .seconds(20)) } catch { return }
+                    if quote != nil && !loading { APIClient.shared.invalidateCache(); await reloadQuote() }
+                }
+            }
             .onChange(of: range) { _, _ in
                 selectedDate = nil
                 Task { await reloadQuote() }
@@ -160,14 +174,14 @@ struct SearchView: View {
                 }
             }
         }
-        if let e = earningsRow, e.status != "—" {
+        if let e = earningsRow, e.status != "none" {
             VStack(alignment: .leading, spacing: 8) {
                 SectionHeader("📅 Earnings")
                 HStack {
                     Text("Earnings \(e.earningsDate)")
                     Spacer()
-                    Pill(text: e.status == "Upcoming" ? "📅 \(e.when)" : "🆕 \(e.when)",
-                         color: e.status == "Upcoming" ? .pulseGreen : .blue)
+                    Pill(text: e.status == "upcoming" ? "📅 \(e.when)" : "🆕 \(e.when)",
+                         color: e.status == "upcoming" ? .pulseGreen : .blue)
                 }
                 .card()
             }
@@ -218,27 +232,38 @@ struct SearchView: View {
         earningsRow = nil
         volatilityRow = nil
         selectedDate = nil
+        let ticket = UUID()
+        requestID = ticket
+        statsNote = "Loading ticker-specific stats…"
+        // Quotes and stats fail independently: a missing earnings date must not hide a price.
+        async let details: SymbolDetails? = try? APIClient.shared.get("/api/symbol/\(sym)", query: ["refresh":"true"], ttl: 0)
         do {
-            async let q = APIClient.shared.quote(sym, range: range)
-            async let e = APIClient.shared.earnings()
-            async let v = APIClient.shared.volatility()
-            let (qq, ee, vv) = try await (q, e, v)
+            let qq: QuoteResponse = try await APIClient.shared.get("/api/quote/\(sym)", query: ["range":range.rawValue,"refresh":"true"], ttl: 0)
+            guard ticket == requestID else { return }
             quote = qq
-            earningsRow = ee.rows.first { $0.symbol.uppercased() == sym }
-            volatilityRow = vv.rows.first { $0.symbol.uppercased() == sym }
         } catch {
-            self.error = (error as? APIError)?.errorDescription ?? error.localizedDescription
+            guard ticket == requestID else { return }
+            self.error = error.localizedDescription
         }
+        guard ticket == requestID else { return }
         loading = false
+        let stats = await details
+        guard ticket == requestID else { return }
+        earningsRow = stats?.earnings
+        volatilityRow = stats?.volatility
+        statsNote = stats.map { "\($0.source) · fetched \($0.as_of). " + $0.warnings.joined(separator: " ") } ?? "Ticker stats are temporarily unavailable. Pull to refresh; the quote remains available."
     }
 
     private func reloadQuote() async {
         let sym = symbol.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
         guard !sym.isEmpty, quote != nil else { return }
+        let ticket = requestID
+        let requestedRange = range
         do {
-            quote = try await APIClient.shared.quote(sym, range: range)
+            let result = try await APIClient.shared.quote(sym, range: requestedRange)
+            if ticket == requestID && range == requestedRange { quote = result }
         } catch {
-            // Keep the existing chart on refresh failure.
+            self.error = error.localizedDescription
         }
     }
 }
