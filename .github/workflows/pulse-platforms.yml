@@ -21,6 +21,7 @@ jobs:
           cache: npm
           cache-dependency-path: mobile-app/package-lock.json
       - run: python -m pip install -r options-seller/api/requirements.txt
+      - run: python -m pip install "pytest>=8,<10"
       - name: Backend regression and TCP latency checks
         working-directory: options-seller
         shell: bash
@@ -28,6 +29,7 @@ jobs:
           export PYTHONPATH="$(pwd)/src"
           python -m unittest discover -s tests/unit -p 'test_p*.py' -v
           python -m unittest discover -s tests/integration -p test_live_latency.py -v
+          python -m pytest tests/unit/test_paper_executor.py tests/unit/test_paper_positions.py tests/unit/test_strategies.py tests/unit/test_scanner_schema.py -q
       - run: npm ci
         working-directory: mobile-app
       - run: npm test

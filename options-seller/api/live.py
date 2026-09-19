@@ -71,6 +71,11 @@ class LivePrices:
                 active={s for s,t in self.wanted.items() if time.time()-t < 900}
                 if active:
                     try:
+                        # yfinance 1.7 can retain a closed socket while listen() retries.
+                        # Recreate that client so subscriptions resume after a network drop.
+                        socket = getattr(self.ws, "_ws", None)
+                        if socket is not None and getattr(socket, "close_code", None) is not None:
+                            raise ConnectionError("Provider socket closed")
                         if self.ws is None:
                             self.ws=yf.AsyncWebSocket(verbose=False)
                         new=active-self.subscribed

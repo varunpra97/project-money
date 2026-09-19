@@ -68,6 +68,10 @@ struct Position: Decodable, Identifiable {    let id: String
     let dayPnl: Double?
     let returnPct: Double?
     let equity: Double?
+    let openingValue: Double?
+    let closeValue: Double?
+    let premiumDirection: String?
+    let markAsOf: String?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -85,6 +89,10 @@ struct Position: Decodable, Identifiable {    let id: String
         case expiry, legs, equity
         case dayPnl = "day_pnl"
         case returnPct = "return_pct"
+        case openingValue = "opening_value"
+        case closeValue = "close_value"
+        case premiumDirection = "premium_direction"
+        case markAsOf = "mark_as_of"
     }
 }
 

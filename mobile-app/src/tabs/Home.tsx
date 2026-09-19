@@ -15,6 +15,7 @@ interface PositionLeg {
 interface Position {
   expiry?: string | null; legs?: PositionLeg[];
   day_pnl?: number | null; return_pct?: number | null; equity?: number | null;
+  opening_value?: number | null; close_value?: number | null; premium_direction?: string; mark_as_of?: string | null;
   id: string; underlying: string; strategy: string; display_name: string;
   opened_at: string; dte: number; qty: number; credit: number; unrealized: number;
   pct_of_max_profit: number; days_held: number; risk_label: string;
@@ -120,12 +121,15 @@ function PositionCard({ p, metric }: { p: Position; metric: PositionMetric }) {
       )) : <div className="meta">Strike: Not recorded</div>}
       {open && (
         <div className="detail-grid">
-          <div className="detail-cell"><div className="k">Credit</div><div className="v">{money(p.credit)}</div></div>
+          <div className="detail-cell"><div className="k">Opening {p.premium_direction === "debit" ? "debit" : "credit"} (total)</div><div className="v">{money(p.opening_value ?? (p.credit == null ? null : Math.abs(p.credit)))}</div></div>
+          <div className="detail-cell"><div className="k">Close {p.premium_direction === "debit" ? "credit" : "debit"} (total)</div><div className="v">{money(p.close_value)}</div></div>
+          <div className="detail-cell"><div className="k">Net gain/loss</div><div className={`v ${cls(p.unrealized)}`}>{moneySigned(p.unrealized)}</div></div>
           <div className="detail-cell"><div className="k">Max profit</div><div className="v">{pctPts(p.pct_of_max_profit, 0)}</div></div>
           <div className="detail-cell"><div className="k">Qty</div><div className="v">{p.qty}</div></div>
           <div className="detail-cell"><div className="k">Held</div><div className="v">{p.days_held}d</div></div>
           <div className="detail-cell"><div className="k">Opened</div><div className="v" style={{ fontSize: 13 }}>{fmtDate(p.opened_at)}</div></div>
           <div className="detail-cell"><div className="k">Risk</div><div className="v" style={{ fontSize: 13 }}>{p.risk_label || "—"}</div></div>
+          <div className="caption" style={{gridColumn: "1 / -1"}}>Close value uses the saved paper mark. {p.mark_as_of ? `Updated ${fmtDate(p.mark_as_of)}.` : "Mark time not recorded."}</div>
         </div>
       )}
     </div>

@@ -149,6 +149,7 @@ def suggested_to_leg(underlying: str, sug: SuggestedLeg, side: Side | None = Non
         option_type=ot,
         strike=sug.strike,
         dte=sug.dte,
+        expiry=sug.expiration,
         side=s,
         quantity=1,
         limit_price=mid,

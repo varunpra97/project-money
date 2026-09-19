@@ -189,6 +189,8 @@ struct HomeView: View {
                             .font(.caption)
                             .foregroundStyle(Color.pulseSecondary)
                             .lineLimit(1)
+                        Text("Exp \(pos.expiry ?? "not recorded")")
+                            .font(.caption2).foregroundStyle(Color.pulseSecondary)
                     }
                     Spacer()
                     VStack(alignment: .trailing, spacing: 2) {
@@ -210,7 +212,6 @@ struct HomeView: View {
             .buttonStyle(.plain)
 
             VStack(alignment: .leading, spacing: 4) {
-                Text("Expiration: \(pos.expiry ?? "Not recorded")")
                 if let legs = pos.legs, !legs.isEmpty {
                     ForEach(Array(legs.enumerated()), id: \.offset) { _, leg in
                         Text("\(leg.side?.capitalized ?? "—") \(leg.quantity.map { String(format: "%g", $0) } ?? "—") · \(leg.optionType ?? "Option") · Strike \(money(leg.strike))")
@@ -234,12 +235,16 @@ struct HomeView: View {
                 ) {
                     stat("Strategy", pos.strategy)
                     stat("Quantity", pos.qty.map { String(format: "%.0f", $0) } ?? "—")
-                    stat("Credit", money(pos.credit))
+                    stat(pos.premiumDirection == "debit" ? "Opening debit (total)" : "Opening credit (total)", money(pos.openingValue ?? pos.credit.map { abs($0) }))
+                    stat(pos.premiumDirection == "debit" ? "Close credit (total)" : "Close debit (total)", money(pos.closeValue))
+                    stat("Net gain/loss", signedMoney(pos.unrealized))
                     stat("% of max profit", pct(pos.pctOfMaxProfit, signed: false))
                     stat("Days held", pos.daysHeld.map { String(format: "%.0f", $0) } ?? "—")
                     stat("Risk", pos.riskLabel ?? "—")
                     stat("Opened", relativeString(pos.openedAt))
                 }
+                Text("Close value uses the saved paper mark. \(pos.markAsOf.map { "Updated " + relativeString($0) } ?? "Mark time not recorded.")")
+                    .font(.caption2).foregroundStyle(Color.pulseSecondary)
             }
         }
         .card()

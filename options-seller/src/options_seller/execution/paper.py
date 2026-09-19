@@ -479,6 +479,7 @@ class PaperExecutor:
             mark = round(float(credit) * float(mark_fraction), 2)
         if mark is not None:
             pos["mark"] = float(mark)
+            pos["marked_at"] = _utc_now()
             if credit is not None and pos.get("credit_debit") == "credit":
                 pos["unrealized_pnl"] = round(float(credit) - float(mark), 2)
             elif credit is not None:

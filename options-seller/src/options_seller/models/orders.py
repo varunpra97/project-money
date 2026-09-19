@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from enum import Enum
+from datetime import date
 from typing import Any, Optional
 
 from pydantic import BaseModel, Field
@@ -23,6 +24,7 @@ class Leg(BaseModel):
     option_type: Optional[str] = None  # call|put|None for stock
     strike: Optional[float] = None
     dte: Optional[int] = None
+    expiry: Optional[date] = None
     side: Side
     quantity: int = 1
     limit_price: Optional[float] = None

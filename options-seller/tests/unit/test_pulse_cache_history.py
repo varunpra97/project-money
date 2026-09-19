@@ -132,6 +132,58 @@ class RouteContractTests(unittest.TestCase):
         self.assertEqual(row["return_pct"], 60)
         self.assertEqual(row["equity"], -80)
         self.assertEqual(row["expiry"], "2026-10-16")
+        self.assertEqual(row["opening_value"], 200)
+        self.assertEqual(row["close_value"], 80)
+
+    def test_debit_position_values_and_shared_leg_expiry(self):
+        main._cache.clear()
+        position = {"id":"debit", "status":"open", "underlying":"TEST", "credit":-200,
+                    "mark":240, "unrealized_pnl":40, "credit_debit":"debit",
+                    "legs":[{"expiry":"2026-10-16", "strike":100, "quantity":1, "side":"buy"}]}
+        with patch.object(main, "load_executor") as executor:
+            executor.return_value.list_open.return_value=[position]
+            row=main.portfolio_positions()["positions"][0]
+        main._cache.clear()
+        self.assertEqual((row["opening_value"],row["close_value"],row["equity"]),(200,240,240))
+        self.assertEqual(row["expiry"],"2026-10-16")
+
+    def test_scanner_expiration_survives_order_and_position_storage(self):
+        from options_seller.models.scanner import SuggestedLeg
+        from options_seller.models.orders import OrderPlan
+        from options_seller.strategies.base import suggested_to_leg
+        from options_seller.execution.paper import PaperExecutor
+        leg=suggested_to_leg("TEST",SuggestedLeg(strike=100,dte=27,expiration="2026-10-16",right="put",premium=2))
+        plan=OrderPlan(underlying="TEST",strategy="cash_secured_put",legs=[leg],net_premium=200,capital_required=10000,max_loss=9800)
+        with tempfile.TemporaryDirectory() as folder:
+            executor=PaperExecutor(store_path=Path(folder)/"paper.json")
+            executor.execute(plan)
+            position=executor.list_open()[0]
+            self.assertEqual(position["legs"][0]["expiry"],"2026-10-16")
+            executor.update_mark(position["id"],mark=80)
+            reloaded=PaperExecutor(store_path=Path(folder)/"paper.json").list_open()[0]
+            self.assertTrue(reloaded["marked_at"])
+
+
+class StreamRecoveryTests(unittest.IsolatedAsyncioTestCase):
+    async def test_closed_provider_socket_is_discarded_for_reconnect(self):
+        from types import SimpleNamespace
+        from unittest.mock import AsyncMock
+        from api.live import LivePrices
+        feed=LivePrices()
+        closed=SimpleNamespace(_ws=SimpleNamespace(close_code=1006),close=AsyncMock())
+        feed.ws=closed
+        feed.wanted["TEST"]=time.time()
+        feed.polled["TEST"]=time.time()
+        feed.task=asyncio.create_task(feed.run())
+        try:
+            for _ in range(50):
+                if feed.ws is None: break
+                await asyncio.sleep(.01)
+            self.assertIsNone(feed.ws)
+            closed.close.assert_awaited_once()
+            self.assertFalse(feed.subscribed)
+        finally:
+            await feed.stop()
 
 
 if __name__ == "__main__":

@@ -157,7 +157,8 @@ def _num(v: Any) -> Optional[float]:
     if v is None:
         return None
     try:
-        return round(float(v), 2)
+        value = float(v)
+        return round(value, 2) if math.isfinite(value) else None
     except (TypeError, ValueError):
         return None
 
@@ -361,6 +362,10 @@ def portfolio_positions():
             if p.get("status") != "open":
                 continue
             legs = p.get("legs") or []
+            expirations = sorted({str(leg["expiry"]) for leg in legs if leg.get("expiry")})
+            premium = _num(p.get("credit"))
+            mark = _num(p.get("mark"))
+            credit_trade = p.get("credit_debit", "credit") == "credit"
             rows.append(
                 {
                     "id": p.get("id"),
@@ -369,12 +374,15 @@ def portfolio_positions():
                     "display_name": _strat_name(p.get("strategy")),
                     "opened_at": p.get("opened_at"),
                     "dte": p.get("dte"),
-                    "expiry": p.get("expiry"),
+                    "expiry": p.get("expiry") or (expirations[0] if len(expirations) == 1 else None),
+                    "opening_value": abs(premium) if premium is not None else None,
+                    "close_value": abs(mark) if mark is not None else None,
+                    "premium_direction": "credit" if credit_trade else "debit",
+                    "mark_as_of": p.get("marked_at"),
                     "day_pnl": None,  # No prior-day option marks are recorded.
                     "return_pct": (float(p["unrealized_pnl"]) / abs(float(p["credit"])) * 100
                                    if p.get("unrealized_pnl") is not None and p.get("credit") else None),
-                    "equity": (float(p["mark"]) * (-1 if p.get("credit_debit", "credit") == "credit" else 1)
-                               if p.get("mark") is not None else None),
+                    "equity": (abs(mark) * (-1 if credit_trade else 1) if mark is not None else None),
                     "legs": [{key: leg.get(key) for key in ("side", "option_type", "strike", "quantity", "expiry")} for leg in legs],
                     "qty": _contract_qty(legs),
                     "credit": _num(p.get("credit")),
