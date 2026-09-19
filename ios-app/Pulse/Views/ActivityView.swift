@@ -19,6 +19,7 @@ struct ActivityView: View {
                                 .fill(Color.pulseCard)
                                 .frame(height: 64)
                                 .redacted(reason: .placeholder)
+                                .shimmer()
                         }
                     } else if let error, items.isEmpty {
                         ErrorCard(message: error) {
@@ -61,6 +62,7 @@ struct ActivityView: View {
             statCard("Open", summary.map { "\($0.openPositions)" } ?? "—")
         }
         .redacted(reason: loading && summary == nil ? .placeholder : [])
+        .shimmer()
     }
 
     private func statCard(_ label: String, _ value: String, color: Color = .white) -> some View {

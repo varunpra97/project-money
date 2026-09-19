@@ -46,7 +46,7 @@ struct PriceChart: View {
     let points: [PricePoint]
     let positive: Bool
     @Binding var selectedDate: Date?
-    @State private var candles = true
+    @State private var candles = false
     @State private var indicator = "SMA 20"
     @State private var volume = true
     @State private var count = 100
@@ -72,53 +72,62 @@ struct PriceChart: View {
         return first.addingTimeInterval(-half)...last.addingTimeInterval(half)
     }
     private func color(_ p: PricePoint) -> Color { p.close >= (p.open ?? p.close) ? .pulseGreen : .pulseRed }
+    /// Robinhood-style line color: green when up, red when down.
+    private var lineColor: Color { positive ? Color.pulseGreen : Color.pulseRed }
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Picker("Chart type", selection: $candles) {
-                    Text("Candles").tag(true)
-                    Text("Line").tag(false)
-                }.pickerStyle(.segmented)
+                Spacer()
                 Button { expanded.toggle() } label: { Image(systemName: expanded ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right") }
-                    .accessibilityLabel("Expand chart")
+                    .accessibilityLabel(expanded ? "Hide chart tools" : "Show chart tools")
             }
-            HStack {
-                Picker("Indicator", selection: $indicator) {
-                    ForEach(["None", "SMA 20", "EMA 20", "Bollinger 20"], id: \.self) { Text($0) }
-                }.pickerStyle(.menu)
-                Toggle("Volume", isOn: $volume).font(.caption)
-            }
-            if let p = selected {
-                Text("O \(money(p.open))  H \(money(p.high))  L \(money(p.low))  C \(money(p.close))")
-                    .font(.system(size:10, design:.monospaced)).foregroundStyle(Color.pulseSecondary)
-                Text("\(p.date.formatted(date:.abbreviated,time:.shortened)) · Vol \(Int(p.volume ?? 0).formatted())")
-                    .font(.caption2).foregroundStyle(Color.pulseSecondary)
+            if expanded {
+                HStack {
+                    Picker("Chart type", selection: $candles) {
+                        Text("Candles").tag(true)
+                        Text("Line").tag(false)
+                    }.pickerStyle(.segmented)
+                }
+                HStack {
+                    Picker("Indicator", selection: $indicator) {
+                        ForEach(["None", "SMA 20", "EMA 20", "Bollinger 20"], id: \.self) { Text($0) }
+                    }.pickerStyle(.menu)
+                    Toggle("Volume", isOn: $volume).font(.caption)
+                }
+                if let p = selected {
+                    Text("O \(money(p.open))  H \(money(p.high))  L \(money(p.low))  C \(money(p.close))")
+                        .font(.system(size:10, design:.monospaced)).foregroundStyle(Color.pulseSecondary)
+                    Text("\(p.date.formatted(date:.abbreviated,time:.shortened)) · Vol \(Int(p.volume ?? 0).formatted())")
+                        .font(.caption2).foregroundStyle(Color.pulseSecondary)
+                }
             }
             if points.isEmpty { Text("No chart data").foregroundStyle(Color.pulseSecondary) }
             else {
                 pricePlot.frame(height: expanded ? 420 : 260)
-                if volume {
-                    Chart(visible) { p in
-                        BarMark(x:.value("Time",p.date),y:.value("Volume",p.volume ?? 0))
-                            .foregroundStyle(color(p).opacity(0.5))
+                if expanded {
+                    if volume {
+                        Chart(visible) { p in
+                            BarMark(x:.value("Time",p.date),y:.value("Volume",p.volume ?? 0))
+                                .foregroundStyle(color(p).opacity(0.5))
+                        }
+                        .chartXScale(domain:xDomain).chartXAxis(.hidden)
+                        .chartYAxis { AxisMarks(position:.trailing,values:.automatic(desiredCount:2)) }
+                        .frame(height:60)
                     }
-                    .chartXScale(domain:xDomain).chartXAxis(.hidden)
-                    .chartYAxis { AxisMarks(position:.trailing,values:.automatic(desiredCount:2)) }
-                    .frame(height:60)
+                    HStack {
+                        Button("←") { offset = min(max(0,points.count-count),offset+max(1,count/3)); selectedDate=nil }
+                            .disabled(points.count-offset <= count).accessibilityLabel("Earlier bars")
+                        Button("→") { offset=max(0,offset-max(1,count/3)); selectedDate=nil }
+                            .disabled(offset==0).accessibilityLabel("Later bars")
+                        Spacer()
+                        Button("＋") { count=max(20,count*2/3); selectedDate=nil }.disabled(count<=20).accessibilityLabel("Zoom in")
+                        Button("−") { count=min(points.count,count*3/2); offset=0; selectedDate=nil }.disabled(count>=points.count).accessibilityLabel("Zoom out")
+                        Button("Fit") { count=points.count; offset=0; selectedDate=nil }
+                    }.buttonStyle(.bordered)
+                    if candles && !hasOHLC { Text("OHLC unavailable. Showing close-price line; refresh to fetch candles.").font(.caption2) }
+                    Text(indicator != "None" && studies.isEmpty ? "Indicators need 20 bars." : "Indicators use the selected interval. Bollinger: 20 bars, 2 standard deviations.")
+                        .font(.caption2).foregroundStyle(Color.pulseSecondary)
                 }
-                HStack {
-                    Button("←") { offset = min(max(0,points.count-count),offset+max(1,count/3)); selectedDate=nil }
-                        .disabled(points.count-offset <= count).accessibilityLabel("Earlier bars")
-                    Button("→") { offset=max(0,offset-max(1,count/3)); selectedDate=nil }
-                        .disabled(offset==0).accessibilityLabel("Later bars")
-                    Spacer()
-                    Button("＋") { count=max(20,count*2/3); selectedDate=nil }.disabled(count<=20).accessibilityLabel("Zoom in")
-                    Button("−") { count=min(points.count,count*3/2); offset=0; selectedDate=nil }.disabled(count>=points.count).accessibilityLabel("Zoom out")
-                    Button("Fit") { count=points.count; offset=0; selectedDate=nil }
-                }.buttonStyle(.bordered)
-                if candles && !hasOHLC { Text("OHLC unavailable. Showing close-price line; refresh to fetch candles.").font(.caption2) }
-                Text(indicator != "None" && studies.isEmpty ? "Indicators need 20 bars." : "Indicators use the selected interval. Bollinger: 20 bars, 2 standard deviations.")
-                    .font(.caption2).foregroundStyle(Color.pulseSecondary)
                 Text("Yahoo Finance data may be delayed.").font(.caption2).foregroundStyle(Color.pulseSecondary)
             }
         }
@@ -126,6 +135,19 @@ struct PriceChart: View {
     }
     private var pricePlot: some View {
         Chart {
+            if !candles || !hasOHLC {
+                ForEach(visible) { p in
+                    AreaMark(x: .value("Time", p.date), y: .value("Close", p.close))
+                        .interpolationMethod(.catmullRom)
+                }
+                .foregroundStyle(
+                    LinearGradient(
+                        colors: [lineColor.opacity(0.25), lineColor.opacity(0)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+            }
             ForEach(visible) { p in
                 if candles && hasOHLC {
                     RuleMark(x:.value("Time",p.date),yStart:.value("Low",p.low!),yEnd:.value("High",p.high!))
@@ -134,23 +156,30 @@ struct PriceChart: View {
                         .foregroundStyle(color(p))
                 } else {
                     LineMark(x:.value("Time",p.date),y:.value("Close",p.close),series:.value("Series","Price"))
-                        .foregroundStyle(positive ? Color.pulseGreen : Color.pulseRed)
+                        .foregroundStyle(lineColor)
+                        .interpolationMethod(.catmullRom)
+                        .lineStyle(StrokeStyle(lineWidth: 2))
                 }
             }
-            ForEach(studies) { s in
-                if indicator != "None" {
-                    LineMark(x:.value("Time",s.date),y:.value("Indicator",indicator == "EMA 20" ? s.ema : s.sma),series:.value("Series","Average"))
-                        .foregroundStyle(Color.orange).lineStyle(StrokeStyle(lineWidth:1.5))
-                }
-                if indicator == "Bollinger 20" {
-                    LineMark(x:.value("Time",s.date),y:.value("Upper",s.upper),series:.value("Series","Upper"))
-                        .foregroundStyle(Color.purple).lineStyle(StrokeStyle(lineWidth:1))
-                    LineMark(x:.value("Time",s.date),y:.value("Lower",s.lower),series:.value("Series","Lower"))
-                        .foregroundStyle(Color.purple).lineStyle(StrokeStyle(lineWidth:1))
+            if expanded {
+                ForEach(studies) { s in
+                    if indicator != "None" {
+                        LineMark(x:.value("Time",s.date),y:.value("Indicator",indicator == "EMA 20" ? s.ema : s.sma),series:.value("Series","Average"))
+                            .foregroundStyle(Color.orange).lineStyle(StrokeStyle(lineWidth:1.5))
+                    }
+                    if indicator == "Bollinger 20" {
+                        LineMark(x:.value("Time",s.date),y:.value("Upper",s.upper),series:.value("Series","Upper"))
+                            .foregroundStyle(Color.purple).lineStyle(StrokeStyle(lineWidth:1))
+                        LineMark(x:.value("Time",s.date),y:.value("Lower",s.lower),series:.value("Series","Lower"))
+                            .foregroundStyle(Color.purple).lineStyle(StrokeStyle(lineWidth:1))
+                    }
                 }
             }
             if let date = selectedDate, let p = nearestPoint(visible,to:date) {
                 RuleMark(x:.value("Selected",p.date)).foregroundStyle(Color.white.opacity(0.5))
+                PointMark(x:.value("Selected",p.date), y:.value("Close",p.close))
+                    .foregroundStyle(.white)
+                    .symbolSize(CGSize(width: 14, height: 14))
             }
         }
         .chartXScale(domain:xDomain)

@@ -209,6 +209,7 @@ struct DiscoverView: View {
                                 .fill(Color.pulseCard)
                                 .frame(width: 220, height: 120)
                                 .redacted(reason: .placeholder)
+                                .shimmer()
                         }
                     }
                 }
@@ -261,6 +262,7 @@ struct DiscoverView: View {
                     .fill(Color.pulseCard)
                     .frame(height: height)
                     .redacted(reason: .placeholder)
+                    .shimmer()
             }
         }
     }

@@ -61,7 +61,7 @@ struct PerformanceView: View {
                     if let d = report {
                         VStack(alignment: .leading, spacing: 12) {
                             Text(period == "lifetime" ? "Lifetime total P&L" : "Period total P&L").foregroundStyle(Color.pulseSecondary)
-                            Text(money(d.pnl)).font(.system(size: 38, weight: .semibold)).foregroundStyle((d.pnl ?? 0) < 0 ? Color.pulseRed : Color.pulseGreen)
+                            Text(money(d.pnl)).font(.system(size: 38, weight: .semibold)).heroNumber().foregroundStyle((d.pnl ?? 0) < 0 ? Color.pulseRed : Color.pulseGreen)
                             Text(d.pnl == nil ? "Not enough historical marks for this period" : "Realized results + change in unrealized P&L").font(.caption).foregroundStyle(Color.pulseSecondary)
                             Text("\(d.open_positions) positions open now · Paper / saved marks").font(.caption)
                         }.frame(maxWidth: .infinity, alignment: .leading).card()

@@ -68,6 +68,7 @@ struct HomeView: View {
                 }
                 .padding()
             }
+            .sensoryFeedback(.selection, trigger: range)
             .background(Color.pulseBg)
             .navigationTitle("Investing")
             .refreshable {
@@ -102,15 +103,18 @@ struct HomeView: View {
                 Text("$—.——")
                     .font(.system(size: 34, weight: .semibold))
                     .redacted(reason: .placeholder)
+                    .shimmer()
             } else if let s = scrubbed {
                 Text(money(s.close))
                     .font(.system(size: 34, weight: .semibold))
+                    .heroNumber()
                 Text(scrubDateLabel(s.date, range: range))
                     .font(.subheadline)
                     .foregroundStyle(Color.pulseSecondary)
             } else {
                 Text(money(summary?.accountValue))
                     .font(.system(size: 34, weight: .semibold))
+                    .heroNumber()
                 HStack(spacing: 6) {
                     Text(signedMoney(summary?.dayPnl))
                     Text("(\(pct(summary?.dayPnlPct)))")
@@ -161,6 +165,7 @@ struct HomeView: View {
                         .fill(Color.pulseCard)
                         .frame(height: 76)
                         .redacted(reason: .placeholder)
+                        .shimmer()
                 }
             } else if positions.isEmpty {
                 Text(summary == nil ? "Positions have not loaded." : "No open positions recorded on this server.")
@@ -173,6 +178,7 @@ struct HomeView: View {
                 }
             }
         }
+        .sensoryFeedback(.selection, trigger: expandedId)
     }
 
     private func positionRow(_ pos: Position) -> some View {

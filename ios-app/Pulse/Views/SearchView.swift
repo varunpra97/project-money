@@ -49,6 +49,7 @@ struct SearchView: View {
                 }
                 .padding()
             }
+            .sensoryFeedback(.selection, trigger: range)
             .background(Color.pulseBg)
             .navigationTitle("Search")
             .refreshable { APIClient.shared.invalidateCache(); await search() }
@@ -100,12 +101,14 @@ struct SearchView: View {
             if let s = scrubbed {
                 Text(money(s.close))
                     .font(.system(size: 32, weight: .semibold))
+                    .heroNumber()
                 Text(scrubDateLabel(s.date, range: range))
                     .font(.subheadline)
                     .foregroundStyle(Color.pulseSecondary)
             } else {
                 Text(money(q.price))
                     .font(.system(size: 32, weight: .semibold))
+                    .heroNumber()
                 Text(pct(q.chgPct))
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(pnlColor(q.chgPct))
@@ -218,6 +221,7 @@ struct SearchView: View {
                 .frame(height: 120)
         }
         .redacted(reason: .placeholder)
+        .shimmer()
     }
 
     // MARK: - Loading

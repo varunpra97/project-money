@@ -86,3 +86,48 @@ struct Pill: View {
             .clipShape(Capsule())
     }
 }
+
+// MARK: - Shimmer loading effect
+
+/// Animated sheen that sweeps across skeleton placeholders.
+/// Apply after `.redacted(reason: .placeholder)`, e.g. `.redacted(reason: .placeholder).shimmer()`.
+struct ShimmerModifier: ViewModifier {
+    @State private var sweep: CGFloat = -1.2
+
+    func body(content: Content) -> some View {
+        content
+            .overlay {
+                GeometryReader { geo in
+                    LinearGradient(
+                        colors: [.clear, .white.opacity(0.14), .clear],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                    .frame(width: geo.size.width * 0.45)
+                    .offset(x: sweep * geo.size.width)
+                    .blendMode(.screen)
+                }
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .allowsHitTesting(false)
+            }
+            .onAppear {
+                withAnimation(.linear(duration: 1.3).repeatForever(autoreverses: false)) {
+                    sweep = 1.2
+                }
+            }
+    }
+}
+
+extension View {
+    /// Robinhood-style shimmer sweep for loading skeletons.
+    func shimmer() -> some View {
+        modifier(ShimmerModifier())
+    }
+
+    /// Hero number styling: tabular digits that roll when the value changes.
+    func heroNumber() -> some View {
+        self
+            .monospacedDigit()
+            .contentTransition(.numericText())
+    }
+}
