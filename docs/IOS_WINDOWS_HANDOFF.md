@@ -58,7 +58,7 @@ client decoded Windows health, summary, positions, activity, Discover and all
 five AAPL OHLCV chart ranges. HTTPS SSE delivered dated `state: stale` prices and
 reconnected after closing/reopening its connection; initial cached price events
 were 21–39 ms from this Mac. That is a transport observation, not exchange-to-phone
-latency. Xcode's physical screen viewer stalled; background/foreground and
+latency. Xcode's physical screen viewer requires iOS 27 while this phone runs iOS 26.6.2; background/foreground and
 cellular transitions on the physical phone are not yet independently verified.
 
 Quotes show provider market time separately from cache age. SSE honors `as_of`,
@@ -73,8 +73,8 @@ Windows backend responds `ready:false`. In the handed-off `api/assistant.py`,
 `Bridge.ensure()` raises immediately when `PULSE_REQUIRE_DESKTOP_SESSION=1`;
 there is no connection attempt in that branch. This is not an iPhone networking
 or pairing failure. Native UI now distinguishes server connectivity from
-assistant availability, preserves the draft during retry, and disables Send
-until the server reports readiness.
+assistant availability, preserves the draft during retry, and rechecks readiness when Send is tapped. An unavailable response is shown
+beside the composer; no message POST occurs and the draft is retained.
 
 The Windows owner should establish an authenticated connection to the **existing
 running desktop process and requested task**, then verify a prompt and streamed
@@ -104,7 +104,8 @@ Windows reported an empty paper store. The Mac checkout contains five open
 positions and five fills, all explicitly marked as demo records. An exact
 private copy was preserved outside Git; the source was not modified. This is
 not yet an authoritative user portfolio and must not be imported automatically.
-Check the previous backend's original store and provenance before migration;
+The previous Cloudflare backend also returns five positions, but their IDs and
+strategy sets differ from the Mac store. Check that backend's original store and provenance before migration;
 do not reconstruct balances from display responses or seed sample positions.
 
 ## Native client checks
@@ -119,3 +120,34 @@ xcrun swiftc -parse-as-library ios-app/Pulse/Config.swift ios-app/Pulse/Models.s
 The offline checks verify fresh requests, HTTP versus decode error reporting,
 freshness metadata and compatibility with older position responses. macOS CI
 runs them without contacting the private Windows server.
+
+## Product ideas → approved source changes
+
+Both clients make idea titles and “Build this upgrade” actionable. Selecting one
+opens its title, scope and evaluation measure in the assistant for review.
+“Start upgrade” checks authenticated assistant readiness and, only when ready,
+posts `/api/assistant/messages` with `mode: "edit"`, `screen: "Product lab"`
+and the approved scope. It does not execute on selection or cancel. A blocked
+or failed request retains the idea for retry; an accepted response clears only
+that idea's pending confirmation. A subsequent chat-list failure cannot resubmit
+it. Ordinary unsent drafts persist locally; text typed while a prior message is
+in flight is preserved when that earlier message succeeds.
+
+Verified in an isolated browser and signed iOS simulator with a test server:
+selection required confirmation; unavailable Start and Send displayed the
+blocker and made no message request; recovery plus confirmation sent exactly
+one edit request per client; web Cancel sent nothing. No real AI task or source
+modification was triggered by these tests. Delayed-response browser checks also
+verified that closing/reopening preserves the active request guard, newer drafts
+survive acceptance, and completion of idea A keeps newly selected idea B pending.
+An independent code review verified the corresponding native model lifecycle.
+Signed device build passed and the update installed on the connected iPhone.
+The initial launch attempt was blocked because the phone was locked.
+Native product-idea execution against the actual Windows conversation remains
+blocked by its unavailable transport.
+
+Windows owner: pull the reviewed client changes and build/serve the updated
+`mobile-app/dist` with your local backend changes preserved. The Mac did not
+restart or overwrite your Windows deployment. This checkout still has the older
+assistant implementation; preserve the Windows exact-conversation requirement
+when integrating backend files from main.

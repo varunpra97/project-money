@@ -157,6 +157,9 @@ struct ProductIdea: Decodable, Identifiable {
     let effort: String
     let related_title: String?
     let related_url: String?
+    var upgradePrompt: String {
+        "Implement this approved Pulse product upgrade in the web and iPhone apps where applicable. Inspect existing code, preserve unrelated work, run relevant checks, and report the changes and any deployment steps. Native changes require a signed Xcode build.\n\nUpgrade: \(title)\nScope: \(detail)\nEvaluation: \(measure)"
+    }
 }
 struct NewsSource: Decodable, Identifiable {
     var id: String { name }
@@ -165,6 +168,7 @@ struct NewsSource: Decodable, Identifiable {
     let stale: Bool
 }
 struct NewsView: View {
+    var onUpgrade: (ProductIdea) -> Void = { _ in }
     @Environment(\.scenePhase) private var scenePhase
     @State private var report: NewsReport?
     @State private var filter = "All"
@@ -203,11 +207,14 @@ struct NewsView: View {
                             ForEach(d.ideas) { idea in
                                 VStack(alignment: .leading, spacing: 12) {
                                     Text("PRODUCT IDEA · \(idea.effort.uppercased()) EFFORT").font(.caption2).foregroundStyle(Color.pulseGreen)
-                                    Text(idea.title).font(.title3.weight(.semibold))
+                                    Button { onUpgrade(idea) } label: {
+                                        HStack { Text(idea.title).font(.title3.weight(.semibold)); Spacer(); Image(systemName: "arrow.up.right") }
+                                    }.buttonStyle(.plain).accessibilityLabel("Review upgrade: " + idea.title)
                                     Text(idea.detail).font(.callout)
                                     Divider()
                                     Text("How to evaluate it").font(.caption.weight(.semibold))
                                     Text(idea.measure).font(.caption).foregroundStyle(Color.pulseSecondary)
+                                    Button("Build this upgrade") { onUpgrade(idea) }.buttonStyle(.bordered)
                                     if let raw = idea.related_url, let url = URL(string: raw) { Link("Related: " + (idea.related_title ?? "Read source"), destination: url).font(.caption) }
                                 }.frame(maxWidth: .infinity, alignment: .leading).card()
                             }

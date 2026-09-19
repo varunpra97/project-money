@@ -1,6 +1,7 @@
 import { Component, Suspense, lazy, useState, type ReactNode } from "react";
 
 import Assistant from "./components/Assistant";
+import type { ProductUpgrade } from "./lib/productUpgrade";
 
 const Home = lazy(() => import("./tabs/Home"));
 const Discover = lazy(() => import("./tabs/Discover"));
@@ -95,18 +96,19 @@ export default function App() {
   const [tab, setTab] = useState<TabKey>("home");
 
   const [assistantOpen, setAssistantOpen] = useState(false);
+  const [upgrade, setUpgrade] = useState<ProductUpgrade | null>(null);
   const params = new URLSearchParams(location.search);
   if (params.get("assistant") === "1") return <Assistant standalone screen={params.get("screen") || "iOS app"}/>;
   return (
     <div className={`app ${assistantOpen ? "with-assistant" : ""}`}>
       <button type="button" className="assistant-launch" onClick={()=>setAssistantOpen(v=>!v)} aria-expanded={assistantOpen}>✦ Assistant</button>
-      {assistantOpen && <Assistant screen={tab} onClose={()=>setAssistantOpen(false)}/>}
+      <Assistant visible={assistantOpen} screen={tab} upgrade={upgrade} onUpgradeHandled={id=>setUpgrade(current=>current?.id === id ? null : current)} onClose={()=>setAssistantOpen(false)}/>
       <main className="main" key={tab}>
         <TabErrorBoundary tab={tab} key={tab}>
           <Suspense fallback={<TabSkeleton />}>
             {tab === "home" && <Home />}
             {tab === "performance" && <Performance />}
-            {tab === "news" && <News />}
+            {tab === "news" && <News onUpgrade={idea=>{setUpgrade(idea);setAssistantOpen(true);}} />}
             {tab === "historical" && <Historical />}
             {tab === "discover" && <Discover />}
             {tab === "search" && <Search />}

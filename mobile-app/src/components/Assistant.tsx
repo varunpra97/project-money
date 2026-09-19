@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import QRCode from "qrcode";
+import { upgradePrompt, type ProductUpgrade } from "../lib/productUpgrade";
 
 type Message = { id: string; role: string; text: string };
 type Approval = { id: string; kind: string; detail: string; reason?: string; cwd?: string };
@@ -81,10 +82,16 @@ export default function Assistant({
   screen,
   onClose,
   standalone = false,
+  visible = true,
+  upgrade,
+  onUpgradeHandled,
 }: {
   screen: string;
   onClose?: () => void;
   standalone?: boolean;
+  visible?: boolean;
+  upgrade?: ProductUpgrade | null;
+  onUpgradeHandled?: (id: string) => void;
 }) {
   const [token, setToken] = useState(() => stored("pulse-assistant-token"));
   const [pairCode, setPairCode] = useState("");
@@ -94,7 +101,8 @@ export default function Assistant({
   const [chat, setChat] = useState<Chat | null>(null);
   const [chatID, setChatID] = useState(() => stored("pulse-assistant-chat"));
   const [chats, setChats] = useState<{ id: string; title: string; busy: boolean }[]>([]);
-  const [text, setText] = useState("");
+  const [text, setText] = useState(()=>stored("pulse-assistant-draft"));
+  useEffect(()=>save("pulse-assistant-draft",text),[text]);
   const [mode, setMode] = useState("ask");
   const [error, setError] = useState("");
   const [sending, setSending] = useState(false);
@@ -103,6 +111,7 @@ export default function Assistant({
   const [autoPairing, setAutoPairing] = useState(false);
   const bottom = useRef<HTMLDivElement>(null);
   const autoPaired = useRef(false);
+  const inFlight = useRef(false);
 
   async function api(path: string, body?: unknown, auth = token) {
     const response = await fetch(base() + "/api/assistant" + path, {
@@ -168,7 +177,7 @@ export default function Assistant({
 
   /** One-shot auto-pair from ?pair=XXXXXXXX (QR / deep link). */
   useEffect(() => {
-    if (autoPaired.current) return;
+    if (!visible || autoPaired.current) return;
     const params = new URLSearchParams(location.search);
     const code = (params.get("pair") || "").replace(/\D/g, "").slice(0, 8);
     if (!code || code.length !== 8) return;
@@ -197,19 +206,20 @@ export default function Assistant({
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [visible]);
 
   useEffect(() => {
+    if (!visible) return;
     // Skip bootstrap race while auto-pair is in flight; connect once we have a token or no pair param.
     const params = new URLSearchParams(location.search);
     const code = (params.get("pair") || "").replace(/\D/g, "");
     if (code.length === 8 && !token) return;
     connect();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token]);
+  }, [token, visible]);
 
   useEffect(() => {
-    if (!token || !chatID) return;
+    if (!visible || !token || !chatID) return;
     let active = true;
     async function poll() {
       try {
@@ -226,9 +236,10 @@ export default function Assistant({
       clearInterval(timer);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, chatID]);
+  }, [token, chatID, visible]);
 
   useEffect(() => {
+    if (!visible) return;
     bottom.current?.scrollIntoView({ block: "nearest" });
   }, [chat?.messages.map((x) => x.text).join(""), chat?.activity, chat?.approvals?.length]);
 
@@ -239,25 +250,31 @@ export default function Assistant({
     setError("");
   }
 
-  async function send(value = text) {
-    if (!value.trim() || sending || chat?.busy) return;
+  async function send(value = text, upgradeID?: string) {
+    if (!value.trim() || inFlight.current || chat?.busy) return;
+    inFlight.current = true;
     setSending(true);
     setError("");
     try {
+      const availability = await api("/status") as Status;
+      setStatus(availability);
+      if (!availability.ready) throw new Error(availability.message || "The assistant is unavailable on the server.");
       const c = (await api("/messages", {
         text: value,
         chat_id: chatID || null,
-        mode,
-        screen,
+        mode: upgradeID ? "edit" : mode,
+        screen: upgradeID ? "Product lab" : screen,
       })) as Chat;
       setChat(c);
       setChatID(c.id);
       save("pulse-assistant-chat", c.id);
-      setText("");
-      await refreshChats();
+      if (upgradeID) onUpgradeHandled?.(upgradeID); else setText(current => current === value ? "" : current);
+      // A follow-up list failure must not leave an accepted upgrade retryable.
+      await refreshChats().catch(()=>{});
     } catch (e) {
       setError(String(e instanceof Error ? e.message : e));
     } finally {
+      inFlight.current = false;
       setSending(false);
     }
   }
@@ -307,7 +324,7 @@ export default function Assistant({
   const needsConnect = Boolean(token && !status?.ready);
 
   return (
-    <aside className={`assistant-panel ${standalone ? "standalone" : ""}`} aria-label="Pulse assistant">
+    <aside hidden={!visible} className={`assistant-panel ${standalone ? "standalone" : ""}`} aria-label="Pulse assistant">
       <header className="assistant-heading">
         <div className="assistant-avatar">✦</div>
         <div>
@@ -326,7 +343,7 @@ export default function Assistant({
 
       <div className="assistant-context">
         <span className={status?.ready ? "connected-dot" : "offline-dot"} />
-        {status?.ready ? "Connected" : "Connection needed"}
+        {status?.ready ? "Connected" : token ? "Device paired · assistant unavailable" : "Connection needed"}
         <span>Viewing {screen}</span>
       </div>
 
@@ -366,6 +383,14 @@ export default function Assistant({
       )}
 
       <div className="assistant-messages" role="log" aria-label="Conversation messages" aria-live="polite">
+        {upgrade && <section className="assistant-approval" aria-label="Confirm product upgrade">
+          <h3>Start this upgrade?</h3><strong>{upgrade.title}</strong>
+          <p>{upgrade.detail}</p><p>Success measure: {upgrade.measure}</p>
+          <p>This asks the assistant to edit the project source. Native changes need a new Xcode installation.</p>
+          <button type="button" disabled={!token || sending || chat?.busy} onClick={()=>send(upgradePrompt(upgrade), upgrade.id)}>{sending ? "Starting…" : "Start upgrade"}</button>
+          <button type="button" disabled={sending} onClick={()=>onUpgradeHandled?.(upgrade.id)}>Cancel</button>
+          {!status?.ready && <p>The assistant is unavailable. Start will recheck its connection; nothing has been submitted yet.</p>}
+        </section>}
         {autoPairing && (
           <section className="assistant-setup">
             <h3>Pairing this device…</h3>
@@ -375,9 +400,9 @@ export default function Assistant({
 
         {needsPair && !autoPairing && (
           <section className="assistant-setup">
-            <h3>Connect to your Mac</h3>
+            <h3>Connect to your server</h3>
             <p>
-              Open the assistant at localhost:8505 on your Mac and scan the QR code, or enter the 8-digit pairing code
+              Open the assistant at localhost:8505 on your Windows server or Mac and scan the QR code, or enter the 8-digit pairing code
               below. This connects this device to your source code and conversations.
             </p>
             <input
@@ -399,8 +424,7 @@ export default function Assistant({
             <h3>Your coding companion</h3>
             <p>{checking ? "Connecting to local Codex…" : status?.message || "Checking your connection…"}</p>
             <p>
-              Uses the Codex account signed in on your Mac. If setup is needed, run <code>bash setup-pulse-assistant.sh</code>{" "}
-              there.
+              The assistant runs on your configured server. Pairing alone does not connect it to a desktop conversation.
             </p>
             <button type="button" onClick={connect} disabled={checking}>
               Check connection
@@ -480,6 +504,7 @@ export default function Assistant({
       </div>
 
       <footer className="assistant-composer">
+        {token && status?.ready === false && <p className="composer-blocker" role="status">Assistant unavailable: {status.message} Your draft has not been sent.</p>}
         <div className="composer-controls">
           <select
             aria-label="Assistant mode"
@@ -511,7 +536,7 @@ export default function Assistant({
         <button
           type="button"
           className="assistant-send"
-          disabled={!status?.ready || !text.trim() || sending || !!chat?.busy}
+          disabled={!token || !text.trim() || sending || !!chat?.busy}
           onClick={() => send()}
         >
           {sending ? "Starting…" : "Send ↑"}
@@ -541,7 +566,7 @@ export default function Assistant({
               )}
             </p>
           ) : (
-            <p>Pairing codes are shown in the assistant on localhost on your Mac.</p>
+            <p>Pairing codes are shown in the assistant on localhost on your server.</p>
           )}
         </details>
       </footer>

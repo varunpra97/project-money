@@ -57,9 +57,9 @@ struct AssistantWebView: UIViewRepresentable {
 // Native controls avoid WKWebView focus/gesture problems inside a resizable sheet.
 import Security
 
-private struct AssistantMessage: Decodable, Identifiable { let id: String; let role: String; let text: String }
-private struct AssistantApproval: Decodable, Identifiable { let id: String; let detail: String; let reason: String? }
-private struct AssistantChat: Decodable, Identifiable {
+struct AssistantMessage: Decodable, Identifiable { let id: String; let role: String; let text: String }
+struct AssistantApproval: Decodable, Identifiable { let id: String; let detail: String; let reason: String? }
+struct AssistantChat: Decodable, Identifiable {
     let id: String
     let title: String
     let messages: [AssistantMessage]
@@ -69,7 +69,7 @@ private struct AssistantChat: Decodable, Identifiable {
     let diff: String
     let approvals: [AssistantApproval]
 }
-private struct AssistantStatus: Decodable {
+struct AssistantStatus: Decodable {
     let ready: Bool
     let message: String
     let code: String?
@@ -78,7 +78,7 @@ private struct AssistantStatus: Decodable {
     }
 }
 private struct AssistantAccess: Decodable { let token: String }
-private struct AssistantChatSummary: Decodable, Identifiable { let id: String; let title: String; let busy: Bool }
+struct AssistantChatSummary: Decodable, Identifiable { let id: String; let title: String; let busy: Bool }
 private struct AssistantOK: Decodable { let ok: Bool }
 
 private enum AssistantCredential {
@@ -103,10 +103,12 @@ private enum AssistantCredential {
     }
 }
 
-@MainActor private final class AssistantModel: ObservableObject {
+@MainActor final class AssistantModel: ObservableObject {
     @Published var token=AssistantCredential.read()
     @Published var pairingCode=""
-    @Published var input=""
+    @Published var input=UserDefaults.standard.string(forKey: "PulseAssistantDraft-" + AppConfig.baseURL) ?? "" {
+        didSet { UserDefaults.standard.set(input, forKey: "PulseAssistantDraft-" + AppConfig.baseURL) }
+    }
     @Published var mode="ask"
     @Published var status:AssistantStatus?
     @Published var chat:AssistantChat?
@@ -170,16 +172,24 @@ private enum AssistantCredential {
         do { let result:AssistantChat=try await request("/chats/\(id)");if selectedID==id { chat=result } }
         catch { if !Task.isCancelled { self.error=error.localizedDescription } }
     }
-    func send(screen:String) async {
-        let text=input.trimmingCharacters(in:.whitespacesAndNewlines)
-        guard !text.isEmpty,!working,chat?.busy != true,status?.ready == true else { return }
+    @discardableResult func send(screen:String, upgradeText:String?=nil) async -> Bool {
+        let submittedDraft=input
+        let text=(upgradeText ?? submittedDraft).trimmingCharacters(in:.whitespacesAndNewlines)
+        guard !text.isEmpty,!working,chat?.busy != true else { return false }
         working=true;defer {working=false};error=nil
         do {
-            var body:[String:Any]=["text":text,"mode":mode,"screen":screen]
+            guard !token.isEmpty else { error="Pair this device before sending.";return false }
+            status=try await request("/status")
+            guard status?.ready == true else { error=status?.message ?? "The assistant is unavailable on the server.";return false }
+            var body:[String:Any]=["text":text,"mode":upgradeText == nil ? mode : "edit","screen":screen]
             if !selectedID.isEmpty {body["chat_id"]=selectedID}
             let result:AssistantChat=try await request("/messages",body:body)
-            chat=result;selectedID=result.id;input="";chats=try await request("/chats")
-        } catch { self.error=error.localizedDescription }
+            chat=result;selectedID=result.id
+            if upgradeText == nil && input == submittedDraft { input="" }
+            // Acceptance is independent of a later conversation-list refresh.
+            if let refreshed:[AssistantChatSummary]=try? await request("/chats") { chats=refreshed }
+            return true
+        } catch { self.error=error.localizedDescription;return false }
     }
     func action(_ path:String, body:[String:Any]) async {
         guard !working else {return};working=true;defer {working=false}
@@ -190,7 +200,9 @@ private enum AssistantCredential {
 
 struct NativeAssistantView: View {
     let screen:String
-    @StateObject private var model=AssistantModel()
+    var upgrade: ProductIdea? = nil
+    var onUpgradeHandled: (String) -> Void = { _ in }
+    @ObservedObject var model: AssistantModel
     @Environment(\.scenePhase) private var scenePhase
     @FocusState private var focused:Bool
     var body: some View {
@@ -198,7 +210,7 @@ struct NativeAssistantView: View {
             HStack {
                 Image(systemName:"sparkles").foregroundStyle(Color.pulseGreen)
                 VStack(alignment:.leading) {
-                    Text(model.status?.ready == true ? "Connected · Codex" : model.status != nil ? "Server connected · Assistant unavailable" : "Connect to your server").font(.caption.weight(.semibold))
+                    Text(model.status?.ready == true ? "Connected · Codex" : !model.token.isEmpty ? "Device paired · assistant unavailable" : "Connect to your server").font(.caption.weight(.semibold))
                     Text("Viewing \(screen)").font(.caption2).foregroundStyle(.secondary)
                 }
                 Spacer()
@@ -212,6 +224,24 @@ struct NativeAssistantView: View {
             ScrollViewReader { proxy in
                 ScrollView {
                     VStack(alignment:.leading,spacing:18) {
+                        if let upgrade {
+                            VStack(alignment: .leading, spacing: 10) {
+                                Text("Start this upgrade?").font(.headline)
+                                Text(upgrade.title).font(.title3.weight(.semibold))
+                                Text(upgrade.detail).font(.callout)
+                                Text("Success measure: " + upgrade.measure).font(.caption).foregroundStyle(.secondary)
+                                Text("This asks the assistant to edit the project source. Native app changes need a new Xcode installation.").font(.caption).foregroundStyle(.secondary)
+                                HStack {
+                                    Button(model.working ? "Starting…" : "Start upgrade") {
+                                        Task {
+                                            if await model.send(screen: "Product lab", upgradeText: upgrade.upgradePrompt) { onUpgradeHandled(upgrade.id) }
+                                        }
+                                    }.disabled(model.token.isEmpty || model.working || model.chat?.busy == true)
+                                    Button("Cancel", role: .cancel) { onUpgradeHandled(upgrade.id) }.disabled(model.working)
+                                }.buttonStyle(.bordered)
+                                if model.status?.ready != true { Text("The assistant is unavailable. Start will recheck its connection; nothing has been submitted yet.").font(.caption).foregroundStyle(.secondary) }
+                            }.padding().background(Color.pulseCard).clipShape(RoundedRectangle(cornerRadius:12))
+                        }
                         if model.token.isEmpty { pairing }
                         else if model.status?.ready != true {
                             if model.status?.desktopUnavailable == true {
@@ -266,6 +296,11 @@ struct NativeAssistantView: View {
                         Button("Stop") { Task { await model.action("/chats/\(id)/stop",body:[:]) } }
                     }
                 }
+                if !model.token.isEmpty, model.status?.ready == false {
+                    Text("Assistant unavailable: " + (model.status?.message ?? "Check the server assistant.") + " Your draft has not been sent.")
+                        .font(.caption).foregroundStyle(.orange).fixedSize(horizontal:false,vertical:true)
+                        .accessibilityIdentifier("assistantUnavailable")
+                }
                 TextField("Message assistant…",text:$model.input,axis:.vertical)
                     .lineLimit(2...5).padding(12).background(Color.pulseCard).clipShape(RoundedRectangle(cornerRadius:10))
                     .focused($focused).accessibilityIdentifier("assistantMessage")
@@ -275,7 +310,7 @@ struct NativeAssistantView: View {
                     Spacer()
                     Button { focused=false;Task { await model.send(screen:screen) } } label: { Label("Send",systemImage:"arrow.up") }
                         .buttonStyle(.borderedProminent).tint(Color.pulseGreen)
-                        .disabled(model.status?.ready != true || model.input.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty || model.working || model.chat?.busy == true)
+                        .disabled(model.token.isEmpty || model.input.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty || model.working || model.chat?.busy == true)
                         .accessibilityIdentifier("assistantSend")
                 }
             }.padding().background(Color.pulseBg)

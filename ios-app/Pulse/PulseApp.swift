@@ -13,13 +13,15 @@ struct PulseApp: App {
 struct ContentView: View {
     @State private var assistantOpen = false
     @State private var selectedTab = "Home"
+    @State private var pendingUpgrade: ProductIdea?
+    @StateObject private var assistantModel=AssistantModel()
     var body: some View {
         GeometryReader { geometry in
             HStack(spacing: 0) {
                 TabView(selection: $selectedTab) {
                     HomeView().tabItem { Label("Home", systemImage: "chart.line.uptrend.xyaxis") }.tag("Home")
                     PerformanceView().tabItem { Label("Stats", systemImage: "chart.bar.xaxis") }.tag("Stats")
-                    NewsView().tabItem { Label("News", systemImage: "newspaper") }.tag("News")
+                    NewsView(onUpgrade: { idea in pendingUpgrade=idea; assistantOpen=true }).tabItem { Label("News", systemImage: "newspaper") }.tag("News")
                     DiscoverView().tabItem { Label("Discover", systemImage: "sparkles") }.tag("Discover")
                     SearchView().tabItem { Label("Search", systemImage: "magnifyingglass") }.tag("Search")
                     HistoricalScannersView().tabItem { Label("Scanners", systemImage: "clock.arrow.circlepath") }.tag("Scanners")
@@ -34,12 +36,12 @@ struct ContentView: View {
                     }.padding(.horizontal).padding(.vertical, 8).background(Color.pulseBg)
                 }
                 if assistantOpen && geometry.size.width >= 850 {
-                    NativeAssistantView(screen: selectedTab).frame(width: 380)
+                    NativeAssistantView(screen: selectedTab, upgrade: pendingUpgrade, onUpgradeHandled: { id in if pendingUpgrade?.id == id { pendingUpgrade=nil } }, model: assistantModel).frame(width: 380)
                 }
             }
             .sheet(isPresented: Binding(get: { assistantOpen && geometry.size.width < 850 }, set: { if !$0 { assistantOpen = false } })) {
                 NavigationStack {
-                    NativeAssistantView(screen: selectedTab)
+                    NativeAssistantView(screen: selectedTab, upgrade: pendingUpgrade, onUpgradeHandled: { id in if pendingUpgrade?.id == id { pendingUpgrade=nil } }, model: assistantModel)
                         .navigationTitle("Pulse Assistant")
                         .navigationBarTitleDisplayMode(.inline)
                         .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { assistantOpen = false } } }
