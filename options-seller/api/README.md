@@ -9,10 +9,10 @@ FastAPI backend for iOS / PWA / web clients. See **[docs/BACKEND.md](../../docs/
 ## Pulse web, iPhone and embedded assistant
 
 From the repository root, run `bash start-pulse-backend.sh`, then open
-http://localhost:8505/. The server binds to the Mac's network interface so an
+http://localhost:8505/. Set `PULSE_HOST=0.0.0.0` so an
 owned iPhone on the same trusted Wi-Fi can connect. Update `ios-app/Pulse/Config.swift`
 if the Mac's LAN address changes; rebuild and Run the Pulse scheme in Xcode.
-The script seeds explicitly demo paper positions only when no portfolio exists.
+The script seeds demo paper positions only with `PULSE_SEED_DEMO=1` and no existing portfolio.
 Saved paper marks are not live option quotes.
 
 Stats includes lifetime and trailing 7/30/90-day views. Period P&L needs a
@@ -57,7 +57,7 @@ stop. Candle history refreshes every 20 seconds independently. Saved option
 marks/Greeks are not relabelled live. A quiet or closed market shows the source
 age and last available price. Caddy flushes SSE immediately; disable buffering
 in any additional Windows proxy. This implementation uses portable asyncio
-and works on supported Python runtimes; Windows deployment remains unverified.
+and passes the Windows/macOS CI checks. The intended Windows server deployment remains unverified.
 
 Run the real TCP integration benchmark from `options-seller`:
 

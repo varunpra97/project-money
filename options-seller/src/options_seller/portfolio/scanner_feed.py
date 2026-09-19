@@ -28,6 +28,7 @@ from options_seller.config import load_defaults
 from options_seller.models.scanner import PortfolioContext, ScanEnvelope
 from options_seller.selector import Selection, select_and_build
 from options_seller.strategies.base import should_skip_earnings
+from options_seller.paths import data_dir
 
 DEFAULT_SCANNER_BASE_URL = "https://views-pill-radical-templates.trycloudflare.com"
 DEFAULT_SCANNER_JSON_PATH = Path(__file__).resolve().parents[4] / "stock-data-scanner" / "scan-latest.json"
@@ -45,7 +46,10 @@ def scanner_ui_url() -> str:
 
 def scanner_json_path() -> Path:
     raw = os.environ.get("SCANNER_JSON_PATH")
-    return Path(raw) if raw else DEFAULT_SCANNER_JSON_PATH
+    if raw:
+        return Path(raw).expanduser()
+    server_file = data_dir() / "scan-latest.json"
+    return server_file if server_file.exists() or os.environ.get("PULSE_DATA_DIR") else DEFAULT_SCANNER_JSON_PATH
 
 
 def scanner_json_url() -> Optional[str]:
@@ -167,6 +171,7 @@ def load_scan_envelope(
     *,
     path: Path | None = None,
     try_remote: bool = True,
+    allow_example: bool = True,
 ) -> tuple[Optional[ScanEnvelope], dict[str, Any]]:
     """Load scan JSON — **local file first**, then optional remote (IPv4), then examples.
 
@@ -220,7 +225,7 @@ def load_scan_envelope(
         status["remote_note"] = "local file used (remote probe skipped; use Refresh scan data)"
 
     # 3) Examples fallback
-    if raw is None and FALLBACK_SCAN_PATH.exists():
+    if raw is None and allow_example and FALLBACK_SCAN_PATH.exists():
         raw = _read_json_file(FALLBACK_SCAN_PATH)
         if raw is not None:
             status["source"] = f"file:{FALLBACK_SCAN_PATH} (fallback)"

@@ -8,6 +8,9 @@ set -euo pipefail
 PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
 API_DIR="$PROJECT_DIR/options-seller/api"
 DATA_DIR="$PROJECT_DIR/options-seller/data"
+DATA_DIR="${PULSE_DATA_DIR:-$DATA_DIR}"
+DATA_DIR="$(python3 -c 'import os,sys; p=os.path.expanduser(sys.argv[1]); print(p if os.path.isabs(p) else os.path.join(sys.argv[2],p))' "$DATA_DIR" "$PROJECT_DIR/options-seller")"
+export PULSE_SCAN_COLLECTOR="${PULSE_SCAN_COLLECTOR:-1}"
 VENV_DIR="$API_DIR/.venv-pulse"
 PORT="${PULSE_PORT:-8505}"
 

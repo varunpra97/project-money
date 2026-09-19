@@ -12,9 +12,10 @@ from fastapi import APIRouter, HTTPException, Request, Depends
 from urllib.parse import urlparse
 from pydantic import BaseModel, Field, model_validator
 import pandas as pd
+from options_seller.paths import data_dir
 
 router=APIRouter(prefix='/api/history')
-DATA=Path(os.environ.get('PULSE_DATA_DIR',Path(__file__).resolve().parents[1]/'data'))/'historical_scanners.json'
+DATA=data_dir()/'historical_scanners.json'
 STORE_LOCK=threading.Lock()
 RULES={'sma20_cross_up':'Cross above SMA 20','above_sma200':'Close above SMA 200',
        'rsi14_oversold':'RSI 14 below 30','rsi14_overbought':'RSI 14 above 70',
@@ -75,18 +76,19 @@ job_tasks=set()
 
 def run_scan(config):
     import yfinance as yf
-    rows=[];errors=[];warnings=[]
+    rows=[];errors=[];warnings=[];bars_scanned={}
     # Fetch enough earlier bars for each interval; never include them in result dates.
     warmup={'1d':400,'1wk':1600,'1mo':6300}[config.interval]
     for symbol in config.symbols:
         try:
             frame=yf.Ticker(symbol).history(start=(config.start-timedelta(days=warmup)).isoformat(),
                 end=(config.end+timedelta(days=1)).isoformat(),interval=config.interval,auto_adjust=True,timeout=12)
+            bars_scanned[symbol]=len(frame)
             matches,warning=evaluate(frame,config,symbol);rows.extend(matches)
             if warning:warnings.append(symbol+': '+warning)
         except Exception as e:errors.append({'symbol':symbol,'error':str(e)[:200]})
     rows.sort(key=lambda r:(r['date'],r['symbol']),reverse=True)
-    return {'matches':rows[:2000],'total_matches':len(rows),'truncated':len(rows)>2000,'errors':errors,'warnings':warnings,
+    return {'matches':rows[:2000],'total_matches':len(rows),'truncated':len(rows)>2000,'errors':errors,'warnings':warnings,'bars_scanned':bars_scanned,
         'source':'Yahoo Finance · adjusted OHLC','completed_at':datetime.now(timezone.utc).isoformat(),
         'note':'Historical technical signals, not simulated trades. Corporate-action adjustments may revise past prices.'}
 

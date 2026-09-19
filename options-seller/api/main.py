@@ -16,6 +16,7 @@ from contextlib import asynccontextmanager
 import logging
 import re
 import math
+import os
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeout
 import functools
 import importlib.util
@@ -46,7 +47,8 @@ from options_seller.portfolio.api import (
     portfolio_greeks_est,
     summary_metrics,
 )
-from options_seller.portfolio.scanner_feed import build_candidates, load_scan_envelope
+from options_seller.portfolio.scanner_feed import build_candidates, load_scan_envelope as _load_scan_envelope
+from options_seller.paths import data_dir
 
 from options_seller.risk.limits import evaluate_book, risk_limits_from_config
 
@@ -68,6 +70,14 @@ def _load_module(name: str, path: Path) -> Optional[Any]:
 
 _celeb = _load_module("celebrity_priority_api", _SCANNER / "celebrity_priority.py")
 _signals = _load_module("market_signals_api", _SCANNER / "market_signals.py")
+if _signals:
+    _signals.CACHE_PATH = data_dir() / "market_signals_cache.json"
+_signals_lock = threading.Lock()
+
+
+def load_scan_envelope():
+    # Production clients must never silently substitute the example fixture.
+    return _load_scan_envelope(allow_example=False)
 
 # ── In-memory TTL cache ──────────────────────────────────────────────────────
 _cache: dict[str, tuple[float, Any]] = {}
@@ -208,7 +218,10 @@ async def lifespan(app):
     live_prices.task = asyncio.create_task(live_prices.run())
     quote_cache.worker = asyncio.create_task(quote_cache.maintain())
     task = asyncio.create_task(observe())
+    collector = asyncio.create_task(collect_client_data())
     yield
+    collector.cancel()
+    await asyncio.gather(collector, return_exceptions=True)
     await live_prices.stop()
     await quote_cache.close()
     if bridge.proc and bridge.proc.returncode is None:
@@ -284,6 +297,10 @@ def scan_proxy():
         import json
         import urllib.request
 
+        # A prepared server file is the quickest source; do not probe two services first.
+        env, status = _load_scan_envelope(try_remote=False, allow_example=False)
+        if env is not None:
+            return {**env.model_dump(mode="json", by_alias=True), "feed_status": status}
         for url in (
             "http://127.0.0.1:8080/api/scan",
             "http://127.0.0.1:8502/api/scan",
@@ -294,12 +311,9 @@ def scan_proxy():
             except Exception:
                 continue
         # Fall back to on-disk envelope used by dashboard
-        env = load_scan_envelope()
+        env, status = load_scan_envelope()
         if env is not None:
-            if hasattr(env, "model_dump"):
-                return env.model_dump(mode="json")
-            if isinstance(env, dict):
-                return env
+            return {**env.model_dump(mode="json", by_alias=True), "feed_status": status}
         return {"error": "scan_unavailable", "schema": "stock-data-scanner.scan/v0.1"}
 
     return cached(30, "scan:proxy", _build)
@@ -451,7 +465,9 @@ def insights_celebrity():
 def _signals_payload(symbols: list[str]) -> tuple[Optional[dict], bool]:
     if _signals is None:
         return None, False
-    return _signals.get_market_signals(symbols)
+    with _signals_lock:
+        data_dir().mkdir(parents=True, exist_ok=True)
+        return _signals.get_market_signals(symbols)
 
 
 @app.get("/api/insights/earnings")
@@ -700,6 +716,48 @@ except ImportError:
 app.include_router(assistant_router)
 app.include_router(live_router)
 app.include_router(history_router)
+
+try:
+    from .data_status import catalog
+    from .collect_scan import collect as collect_scan
+except ImportError:
+    from data_status import catalog
+    from collect_scan import collect as collect_scan
+
+
+async def collect_client_data():
+    """Prepare non-tick datasets on the server even while no clients are open."""
+    async def metadata():
+        while True:
+            await catalog.collect({"summary": portfolio_summary, "positions": portfolio_positions,
+                "activity": portfolio_activity, "risk": risk_status, "news": news_endpoint,
+                "celebrity": insights_celebrity, "earnings": insights_earnings,
+                "volatility": insights_volatility, "candidates": candidates})
+            for period in ("lifetime", "week", "month", "quarter"):
+                await catalog.collect({"performance:"+period: lambda p=period: performance(p)})
+            await asyncio.sleep(300)
+    async def scanner():
+        while True:
+            if os.environ.get("PULSE_SCAN_COLLECTOR", "0") == "1":
+                await catalog.collect({"scan": collect_scan})
+                with _cache_lock:
+                    _cache.pop("scan:proxy", None)
+                    _cache.pop("candidates", None)
+            else:
+                await catalog.collect({"scan": scan_proxy})
+            await asyncio.sleep(300)
+    workers = [asyncio.create_task(metadata()), asyncio.create_task(scanner())]
+    try:
+        await asyncio.gather(*workers)
+    finally:
+        for worker in workers:
+            worker.cancel()
+        await asyncio.gather(*workers, return_exceptions=True)
+
+
+@app.get("/api/data/status")
+def data_status():
+    return catalog.snapshot()
 
 # ── Frontend SPA (optional) ──────────────────────────────────────────────────
 _DIST = ROOT.parent / "mobile-app" / "dist"

@@ -8,10 +8,11 @@ from typing import Any, Optional
 
 from options_seller.execution.paper import PaperExecutor
 from options_seller.portfolio.celebrity_priority import rollup_ticker
+from options_seller.paths import data_dir
 
 # Default path under the options-seller project
 _PROJECT_ROOT = Path(__file__).resolve().parents[3]
-DEFAULT_PAPER_PATH = _PROJECT_ROOT / "data" / "paper_portfolio.json"
+DEFAULT_PAPER_PATH = data_dir() / "paper_portfolio.json"
 
 
 def load_executor(

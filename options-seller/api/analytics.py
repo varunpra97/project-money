@@ -4,9 +4,10 @@ import json
 import threading
 from pathlib import Path
 from options_seller.portfolio.api import load_executor, summary_metrics
+from options_seller.paths import data_dir
 
 LOCK = threading.Lock()
-HISTORY = Path(__file__).resolve().parents[1] / "data" / "performance_history.json"
+HISTORY = data_dir() / "performance_history.json"
 
 
 def stamp(value):

@@ -11,13 +11,14 @@ import threading
 from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 import xml.etree.ElementTree as ET
+from options_seller.paths import data_dir
 
 SOURCES = [
     ("Cboe Insights", "Options", "https://www.cboe.com/insights/rss/"),
     ("CNBC", "Markets", "https://www.cnbc.com/id/100003114/device/rss/rss.html"),
     ("Federal Reserve", "Markets", "https://www.federalreserve.gov/feeds/press_all.xml"),
 ]
-CACHE = Path(__file__).resolve().parents[1] / "data" / "news_cache.json"
+CACHE = data_dir() / "news_cache.json"
 LOCK = threading.Lock()
 
 

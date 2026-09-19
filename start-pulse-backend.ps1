@@ -22,6 +22,7 @@ if ($Setup -or -not (Test-Path $Python)) {
     if ($LASTEXITCODE -ne 0) { throw "Web build failed." }
 }
 $env:PYTHONPATH = Join-Path $Api "src"
+if (-not $env:PULSE_SCAN_COLLECTOR) { $env:PULSE_SCAN_COLLECTOR = "1" }
 # Do not seed or overwrite the Windows server's actual paper portfolio.
 Write-Host "Pulse: http://${ListenHost}:${Port}/pulse/"
 Push-Location $Api

@@ -13,7 +13,8 @@ from pydantic import BaseModel, Field
 from typing import Literal
 
 ROOT = Path(__file__).resolve().parents[2]
-STATE = ROOT / "options-seller/data/assistant"
+from options_seller.paths import data_dir
+STATE = data_dir() / "assistant"
 router = APIRouter(prefix="/api/assistant")
 
 
@@ -124,9 +125,9 @@ def app_context(screen):
     data = {"screen": screen, "at": now(), "repo": str(ROOT), "architecture": {
         "web": "React/TypeScript in mobile-app/src", "ios": "SwiftUI in ios-app/Pulse",
         "api": "FastAPI in options-seller/api", "engine": "options-seller/src/options_seller",
-        "scanner": "stock-data-scanner", "runtime": "Mac API port 8505; shared paper portfolio; saved marks are not live option quotes"}}
+        "scanner": "stock-data-scanner", "runtime": "Server-hosted API and paper portfolio; saved marks are not live option quotes"}}
     for name, filename in [("paper_portfolio", "paper_portfolio.json"), ("news", "news_cache.json")]:
-        path = ROOT / "options-seller/data" / filename
+        path = data_dir() / filename
         try:
             value = json.loads(path.read_text())
             if name == "news":

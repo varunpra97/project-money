@@ -24,3 +24,5 @@ options-seller/api/portfolio_data.json
 **/data/historical_scanners.json
 *.bak-pre-seamless
 ios-app/build/
+**/data/market_signals_cache.json
+**/data/scan-latest.json
