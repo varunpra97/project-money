@@ -21,7 +21,7 @@ enum APIError: LocalizedError {
         case .decoding:
             return "Couldn't read the server's response."
         case .network(let err):
-            return err.localizedDescription
+            return "Check that Tailscale is connected and the Windows server is awake. " + err.localizedDescription
         }
     }
 }
@@ -46,44 +46,24 @@ enum QuoteRange: String, CaseIterable, Identifiable {
     }
 }
 
-/// Small cached API client. All calls are async/await; results are cached
-/// in memory with a per-endpoint TTL for a snappy UI.
+/// The Windows server owns freshness and shared provider caching.
+/// Every client call reaches the server; views may retain dated display state.
 /// Thread-safe: safe to call from any task or actor.
 final class APIClient {
     static let shared = APIClient()
 
     private let session: URLSession
-    private let lock = NSLock()
-    private var cache: [String: (expires: Date, data: Data)] = [:]
 
-    private init() {
-        let cfg = URLSessionConfiguration.default
-        cfg.urlCache = URLCache(
-            memoryCapacity: 32 * 1024 * 1024,
-            diskCapacity: 128 * 1024 * 1024
-        )
+    init(configuration: URLSessionConfiguration = .default) {
+        let cfg = configuration
+        cfg.urlCache = nil
         cfg.requestCachePolicy = .reloadIgnoringLocalCacheData
         cfg.timeoutIntervalForRequest = 35
         self.session = URLSession(configuration: cfg)
     }
 
     func invalidateCache() {
-        lock.lock()
-        defer { lock.unlock() }
-        cache.removeAll()
-    }
-
-    private func cachedData(for key: String) -> Data? {
-        lock.lock()
-        defer { lock.unlock() }
-        guard let hit = cache[key], hit.expires > Date() else { return nil }
-        return hit.data
-    }
-
-    private func store(_ data: Data, for key: String, ttl: TimeInterval) {
-        lock.lock()
-        defer { lock.unlock() }
-        cache[key] = (Date().addingTimeInterval(ttl), data)
+        // Compatibility for existing pull-to-refresh callers; no client cache.
     }
 
     private func url(for path: String, query: [String: String] = [:]) throws -> URL {
@@ -102,13 +82,9 @@ final class APIClient {
     func get<T: Decodable>(
         _ path: String,
         query: [String: String] = [:],
-        ttl: TimeInterval = 60
+        ttl: TimeInterval = 60 // Retained for existing callers; server owns TTLs.
     ) async throws -> T {
         let u = try url(for: path, query: query)
-        let key = u.absoluteString
-        if let hit = cachedData(for: key) {
-            return try decode(hit)
-        }
         do {
             let (data, resp) = try await session.data(from: u)
             if let payload = try? JSONSerialization.jsonObject(with: data) as? [String: Any], let message = (payload["error"] ?? payload["detail"]) as? String { throw APIError.server(message) }
@@ -118,7 +94,6 @@ final class APIClient {
                 throw APIError.http((resp as? HTTPURLResponse)?.statusCode ?? -1)
             }
             let decoded: T = try decode(data)
-            store(data, for: key, ttl: ttl)
             return decoded
         } catch let apiErr as APIError {
             throw apiErr

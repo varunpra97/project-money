@@ -38,3 +38,9 @@ jobs:
         working-directory: mobile-app
       - run: npx tsc --noEmit
         working-directory: mobile-app
+      - name: Native client freshness and compatibility checks
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          xcrun swiftc -parse-as-library ios-app/Pulse/Config.swift ios-app/Pulse/Models.swift ios-app/Pulse/APIClient.swift ios-app/tests/ClientContractChecks.swift -o "$RUNNER_TEMP/pulse-client-contract"
+          "$RUNNER_TEMP/pulse-client-contract"

@@ -48,7 +48,7 @@ struct DiscoverView: View {
     private var celebritySection: some View {
         VStack(alignment: .leading, spacing: 10) {
             SectionHeader("⭐ Celebrity moves",
-                          subtitle: celebrity.map { "Scan \($0.scanDate)" } ?? "Ranked fund & disclosure moves")
+                          subtitle: celebrity.map { "Curated disclosures · \($0.scanDate) · not a live feed" } ?? "Ranked fund & disclosure moves")
             if loading && celebrity == nil {
                 placeholderCards(2)
             } else {
@@ -89,6 +89,7 @@ struct DiscoverView: View {
     private var earningsSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             SectionHeader("📅 Earnings radar", subtitle: "Upcoming reports in the tracker universe")
+            if let earnings { Text("Updated \(earnings.asOf)\(earnings.fresh ? "" : " · cached / stale")").font(.caption2).foregroundStyle(Color.pulseSecondary) }
             if loading && earnings == nil {
                 placeholderCards(3, height: 64)
             } else {
@@ -133,6 +134,10 @@ struct DiscoverView: View {
     private var volatilitySection: some View {
         VStack(alignment: .leading, spacing: 10) {
             SectionHeader("🌊 Volatility watch", subtitle: "Recent movers in the tracker universe")
+            if let volatility {
+                Text("Updated \(volatility.asOf)\(volatility.fresh == false ? " · cached / refresh pending" : "")")
+                    .font(.caption2).foregroundStyle(Color.pulseSecondary)
+            }
             if loading && volatility == nil {
                 placeholderCards(3, height: 84)
             } else {

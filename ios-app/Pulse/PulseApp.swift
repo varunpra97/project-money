@@ -62,12 +62,12 @@ struct SetupView: View {
                     .foregroundStyle(Color.pulseSecondary)
                 VStack(alignment: .leading, spacing: 8) {
                     Text("1. In Xcode, open Pulse/Config.swift")
-                    Text("2. Set AppConfig.baseURL to your API's public URL")
+                    Text("2. Set AppConfig.baseURL to your Pulse server URL")
                     Text("3. Press Cmd+R to run again")
                 }
                 .font(.callout)
                 .card()
-                Text("The API URL looks like https://something.trycloudflare.com — no trailing slash. It comes from whoever hosts your Pulse backend.")
+                Text("The current server is https://varunpc.tail68d841.ts.net/pulse. Keep Tailscale connected on the phone and the Windows server awake.")
                     .font(.footnote)
                     .foregroundStyle(Color.pulseSecondary)
                 Spacer()

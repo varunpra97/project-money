@@ -122,6 +122,7 @@ struct SearchView: View {
                 selectedDate: $selectedDate
             )
             RangePicker(range: $range)
+            QuoteFreshness(quote: q)
         }
     }
 

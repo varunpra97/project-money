@@ -69,7 +69,14 @@ private struct AssistantChat: Decodable, Identifiable {
     let diff: String
     let approvals: [AssistantApproval]
 }
-private struct AssistantStatus: Decodable { let ready: Bool; let message: String }
+private struct AssistantStatus: Decodable {
+    let ready: Bool
+    let message: String
+    let code: String?
+    var desktopUnavailable: Bool {
+        !ready && (code == "desktop_transport_unavailable" || message.localizedCaseInsensitiveContains("exact desktop conversation"))
+    }
+}
 private struct AssistantAccess: Decodable { let token: String }
 private struct AssistantChatSummary: Decodable, Identifiable { let id: String; let title: String; let busy: Bool }
 private struct AssistantOK: Decodable { let ok: Bool }
@@ -107,6 +114,7 @@ private enum AssistantCredential {
     @Published var selectedID=""
     @Published var error:String?
     @Published var working=false
+    @Published var checking=false
     private let session:URLSession = {
         let config=URLSessionConfiguration.ephemeral
         config.timeoutIntervalForRequest=25
@@ -129,17 +137,18 @@ private enum AssistantCredential {
         return try JSONDecoder().decode(T.self,from:data)
     }
     func connect() async {
+        guard !checking else { return }; checking=true; defer { checking=false }
         error=nil
         do {
             #if targetEnvironment(simulator)
-            if token.isEmpty {
+            if token.isEmpty && ["localhost", "127.0.0.1", "::1"].contains(URL(string: AppConfig.baseURL)?.host ?? "") {
                 let access:AssistantAccess=try await request("/bootstrap")
                 try AssistantCredential.write(access.token);token=access.token
             }
             #endif
             guard !token.isEmpty else { return }
             status=try await request("/status")
-            chats=try await request("/chats")
+            if status?.ready == true { chats=try await request("/chats") }
         } catch { if !Task.isCancelled { self.error=error.localizedDescription } }
     }
     func pair() async {
@@ -189,15 +198,15 @@ struct NativeAssistantView: View {
             HStack {
                 Image(systemName:"sparkles").foregroundStyle(Color.pulseGreen)
                 VStack(alignment:.leading) {
-                    Text(model.status?.ready == true ? "Connected · Codex" : "Connect to your server").font(.caption.weight(.semibold))
+                    Text(model.status?.ready == true ? "Connected · Codex" : model.status != nil ? "Server connected · Assistant unavailable" : "Connect to your server").font(.caption.weight(.semibold))
                     Text("Viewing \(screen)").font(.caption2).foregroundStyle(.secondary)
                 }
                 Spacer()
                 Menu {
                     Button("New conversation") { Task { await model.select("") } }
                     ForEach(model.chats) { c in Button(c.title) { Task { await model.select(c.id) } } }
-                } label: { Image(systemName:"bubble.left.and.bubble.right") }.accessibilityLabel("Conversations")
-                Button { Task { await model.select("") } } label: { Image(systemName:"plus") }.accessibilityLabel("New conversation")
+                } label: { Image(systemName:"bubble.left.and.bubble.right") }.accessibilityLabel("Conversations").disabled(model.status?.ready != true)
+                Button { Task { await model.select("") } } label: { Image(systemName:"plus") }.accessibilityLabel("New conversation").disabled(model.status?.ready != true)
             }.padding()
             Divider()
             ScrollViewReader { proxy in
@@ -205,8 +214,17 @@ struct NativeAssistantView: View {
                     VStack(alignment:.leading,spacing:18) {
                         if model.token.isEmpty { pairing }
                         else if model.status?.ready != true {
-                            Text(model.status?.message ?? "Checking the assistant connection…")
-                            Button("Check connection") { Task { await model.connect() } }.buttonStyle(.bordered)
+                            if model.status?.desktopUnavailable == true {
+                                Text("Windows assistant connection needed").font(.headline)
+                                Text("Your iPhone is paired with the server. The server still needs a connection to your Windows desktop conversation before it can answer or edit code.")
+                                    .font(.callout).foregroundStyle(.secondary)
+                                DisclosureGroup("Server details") { Text(model.status?.message ?? "").font(.caption).textSelection(.enabled) }
+                            } else {
+                                Text(model.status?.message ?? "Checking the assistant connection…")
+                            }
+                            Button(model.checking ? "Checking…" : "Retry assistant") { Task { await model.connect() } }
+                                .buttonStyle(.bordered).disabled(model.checking)
+                            Text("Your draft is kept here while you retry.").font(.caption).foregroundStyle(.secondary)
                         }
                         if let error=model.error { Text(error).font(.callout).foregroundStyle(Color.pulseRed).accessibilityIdentifier("assistantError") }
                         if let error=model.chat?.error { Text(error).font(.callout).foregroundStyle(Color.pulseRed) }

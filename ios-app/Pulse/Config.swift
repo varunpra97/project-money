@@ -1,14 +1,8 @@
 import Foundation
 
 struct AppConfig {
-    // Debug builds use this Mac for development; release clients use the canonical backend.
-    #if DEBUG
-      #if targetEnvironment(simulator)
-      static let baseURL = "http://127.0.0.1:8505"
-      #else
-      static let baseURL = "http://10.0.0.160:8505/pulse"
-      #endif
-    #else
-    static let baseURL = "https://views-pill-radical-templates.trycloudflare.com/pulse"
-    #endif
+    // Windows backend, reachable on Wi-Fi or cellular with Tailscale connected.
+    // Override PULSE_BACKEND_URL in the Xcode scheme for a different server.
+    static let baseURL = ProcessInfo.processInfo.environment["PULSE_BACKEND_URL"]
+        ?? "https://varunpc.tail68d841.ts.net/pulse"
 }

@@ -182,7 +182,7 @@ struct NewsView: View {
                     }.pickerStyle(.segmented)
                     if let error { ErrorCard(message: error) { Task { await load() } } }
                     if let d = report {
-                        Text("Checked \(d.checked_at) · refreshes every 10 min").font(.caption2).foregroundStyle(Color.pulseSecondary)
+                        Text("Checked \(d.checked_at) · checks the server every minute").font(.caption2).foregroundStyle(Color.pulseSecondary)
                         if d.sources.contains(where: { $0.stale }) {
                             Text("Some sources are unavailable. Older headlines are labeled cached.").font(.caption).foregroundStyle(.orange)
                         }
@@ -226,7 +226,7 @@ struct NewsView: View {
                     guard scenePhase == .active else { return }
                     while !Task.isCancelled {
                         await load()
-                        do { try await Task.sleep(for: .seconds(600)) } catch { return }
+                        do { try await Task.sleep(for: .seconds(60)) } catch { return }
                     }
                 }
         }

@@ -84,7 +84,7 @@ struct HomeView: View {
                 while !Task.isCancelled {
                     do { try await Task.sleep(for: .seconds(20)) } catch { return }
                     APIClient.shared.invalidateCache()
-                    await loadQuote()
+                    await load()
                 }
             }
             .onChange(of: range) { _, _ in
@@ -141,6 +141,7 @@ struct HomeView: View {
             PriceChart(points: points, positive: chartPositive, selectedDate: $selectedDate)
                 .redacted(reason: loading && quote == nil ? .placeholder : [])
             RangePicker(range: $range)
+            if let quote { QuoteFreshness(quote: quote) }
         }
     }
 
@@ -162,7 +163,7 @@ struct HomeView: View {
                         .redacted(reason: .placeholder)
                 }
             } else if positions.isEmpty {
-                Text("No open positions.")
+                Text(summary == nil ? "Positions have not loaded." : "No open positions recorded on this server.")
                     .font(.callout)
                     .foregroundStyle(Color.pulseSecondary)
                     .card()
@@ -269,20 +270,25 @@ struct HomeView: View {
             async let s = APIClient.shared.summary()
             async let p = APIClient.shared.positions()
             let (ss, pp) = try await (s, p)
+            guard !Task.isCancelled else { return }
             summary = ss
             positions = pp
             await loadQuote()
         } catch {
-            self.error = (error as? APIError)?.errorDescription ?? error.localizedDescription
+            if !Task.isCancelled { self.error = (error as? APIError)?.errorDescription ?? error.localizedDescription }
         }
         loading = false
     }
 
     private func loadQuote() async {
+        let requestedSymbol=chartSymbol
+        let requestedRange=range
         do {
-            quote = try await APIClient.shared.quote(chartSymbol, range: range)
+            let result=try await APIClient.shared.quote(requestedSymbol, range: requestedRange)
+            guard requestedSymbol == chartSymbol && requestedRange == range && !Task.isCancelled else {return}
+            quote=result
         } catch {
-            // Keep the previous chart; the header still shows account value.
+            if !Task.isCancelled { self.error="Chart refresh failed. Showing the last dated chart. " + error.localizedDescription }
         }
     }
 }

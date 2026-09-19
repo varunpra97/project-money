@@ -38,7 +38,84 @@ here or in the agreed task handoff before asking for an iOS rebuild. Include
 commit SHA, migration needs, data-check results, streaming/proxy behavior and
 assistant availability. Keep passwords, keys and access tokens out of Git.
 
-The Mac has verified Windows CI, not the VarunPC deployment. The current native
-base address is in `ios-app/Pulse/Config.swift`; switching that build to Windows
-requires a verified reachable backend address. Do not change it to an untested
-host solely because the host responds to Tailscale ping.
+## September 19: Windows handoff applied on Mac
+
+The native Debug, Release and simulator default is now
+`https://varunpc.tail68d841.ts.net/pulse`. Every ordinary request reaches Windows;
+client URLCache and the old in-memory TTL cache are disabled. A scheme may set
+`PULSE_BACKEND_URL` explicitly for isolated development. Keep Tailscale connected.
+No Mac LAN address or temporary Cloudflare hostname is a build default.
+
+The Windows source snapshot was based on `156be2e` with uncommitted changes.
+Only its Config/APIClient changes were merged, preserving the newer Mac views
+and position contracts. The Windows owner must merge their local backend work
+with main; do not overwrite that checkout from this iOS patch.
+
+Verified using Xcode 27.0 (27A266a): signed Debug build and USB installation on
+the attached iPhone 17 Pro succeeded, preserving the app container and Keychain.
+The user confirmed Home loads on that physical phone. The production Swift API
+client decoded Windows health, summary, positions, activity, Discover and all
+five AAPL OHLCV chart ranges. HTTPS SSE delivered dated `state: stale` prices and
+reconnected after closing/reopening its connection; initial cached price events
+were 21–39 ms from this Mac. That is a transport observation, not exchange-to-phone
+latency. Xcode's physical screen viewer stalled; background/foreground and
+cellular transitions on the physical phone are not yet independently verified.
+
+Quotes show provider market time separately from cache age. SSE honors `as_of`,
+`timestamp` and `state`; dated marks and curated filings stay labeled. News checks
+Windows every minute while active. Home refreshes portfolio and charts every
+20 seconds, retaining the last dated display on refresh failure.
+
+## Assistant blocker requiring Windows action
+
+The phone has successfully paired and received `/api/assistant/status`, but the
+Windows backend responds `ready:false`. In the handed-off `api/assistant.py`,
+`Bridge.ensure()` raises immediately when `PULSE_REQUIRE_DESKTOP_SESSION=1`;
+there is no connection attempt in that branch. This is not an iPhone networking
+or pairing failure. Native UI now distinguishes server connectivity from
+assistant availability, preserves the draft during retry, and disables Send
+until the server reports readiness.
+
+The Windows owner should establish an authenticated connection to the **existing
+running desktop process and requested task**, then verify a prompt and streamed
+reply in that same task. Do not clear the flag, launch a replacement app-server,
+or create a new conversation as a workaround. Keep local bootstrap local and
+paired credentials in Keychain; no credentials belong in this file.
+
+Please return `code: "desktop_transport_unavailable"` alongside the existing
+`ready:false` and explanatory `message` while blocked. The client supports that
+optional field and the existing message. When transport is available, retrying
+status enables the native composer without reinstalling the app.
+
+The Mac task's tool inventory currently exposes only its local host. Replies to
+the Windows task failed both without a host and with the Windows-suggested
+`remote-control` host (no registered host manager). The Windows agent can read
+this handoff and the Mac task checkpoint using its established inbound route.
+A working Mac-to-VarunPC desktop connection is needed for direct replies.
+
+Official references: [App Server](https://learn.chatgpt.com/docs/app-server) and
+[Remote connections](https://learn.chatgpt.com/docs/remote-connections). The
+protocol documents transport and thread operations; it does not establish that
+this Windows desktop process currently exposes a usable shared endpoint.
+
+## Portfolio migration remains separate
+
+Windows reported an empty paper store. The Mac checkout contains five open
+positions and five fills, all explicitly marked as demo records. An exact
+private copy was preserved outside Git; the source was not modified. This is
+not yet an authoritative user portfolio and must not be imported automatically.
+Check the previous backend's original store and provenance before migration;
+do not reconstruct balances from display responses or seed sample positions.
+
+## Native client checks
+
+```bash
+xcrun swiftc -parse-as-library ios-app/Pulse/Config.swift ios-app/Pulse/Models.swift ios-app/Pulse/APIClient.swift ios-app/tests/ClientContractChecks.swift -o /tmp/pulse-client-contract
+/tmp/pulse-client-contract
+# Optional read-only integration check against the configured Windows server:
+/tmp/pulse-client-contract --server
+```
+
+The offline checks verify fresh requests, HTTP versus decode error reporting,
+freshness metadata and compatibility with older position responses. macOS CI
+runs them without contacting the private Windows server.

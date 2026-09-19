@@ -169,12 +169,30 @@ struct RangePicker: View {
     }
 }
 
+struct QuoteFreshness: View {
+    let quote: QuoteResponse
+    var body: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text("\(quote.source ?? "Price provider") · Market time: \(parseISODate(quote.asOf)?.formatted() ?? "unavailable")")
+            if let age = quote.cacheAgeSeconds {
+                Text("Server cache age: \(Int(max(0, age)))s\(quote.cacheStale == true || quote.fresh == false ? " · cached / refresh pending" : "")")
+            } else if quote.cacheStale == true || quote.fresh == false {
+                Text("Cached data · provider refresh pending")
+            }
+            if let warning = quote.cacheWarning, !warning.isEmpty { Text(warning) }
+            Text("Market time can remain unchanged while markets are closed or the provider is delayed.")
+        }.font(.caption2).foregroundStyle(Color.pulseSecondary)
+    }
+}
+
 private struct LiveTick: Decodable {
     let symbol: String
     let price: Double?
     let state: String
     let timestamp: Double?
     let source: String
+    let as_of: String?
+    var marketDate: Date? { parseISODate(as_of) ?? timestamp.map(Date.init(timeIntervalSince1970:)) }
 }
 private struct LiveEnvelope: Decodable {
     let quotes: [LiveTick]
@@ -189,13 +207,14 @@ struct LiveStockPrice: View {
     var body: some View {
         VStack(alignment:.leading,spacing:4) {
             TimelineView(.periodic(from:.now,by:1)) { context in
-                let age = tick?.timestamp.map { max(0, context.date.timeIntervalSince1970 - $0) }
-                let state = !connected ? "Reconnecting" : (age ?? 0) > 90 ? "Last available" : tick?.state == "stream" ? "Streaming" : tick?.state == "polling" ? "Polling fallback" : "Connecting"
+                let age = tick?.marketDate.map { max(0, context.date.timeIntervalSince($0)) }
+                let state = !connected ? "Reconnecting" : tick?.state == "stale" || (age ?? 0) > 90 ? "Last available" : tick?.state == "stream" ? "Streaming" : tick?.state == "polling" ? "Polling fallback" : "Connecting"
                 Text("● \(state) · \(symbol) \(money(tick?.price))").font(.caption.weight(.semibold))
-                if let timestamp = tick?.timestamp {
-                    Text("Source: \(Date(timeIntervalSince1970:timestamp).formatted()) · \(Int(age ?? 0))s old")
+                if let date = tick?.marketDate {
+                    Text("Market time: \(date.formatted()) · \(Int(age ?? 0))s old")
                         .font(.caption2).foregroundStyle(Color.pulseSecondary)
                 }
+                if let source = tick?.source { Text(source).font(.caption2).foregroundStyle(Color.pulseSecondary) }
             }
             DisclosureGroup("Latency & improvements") {
                 Text("Push delivery: \(delivery.map { String(format: "%.0f ms", $0) } ?? "measuring") (approximate; device clocks affect this). Streaming stock prices use a separate feed from candles and Greeks. Fallback checks every 20 seconds. Provider delays can still apply.")
@@ -204,7 +223,8 @@ struct LiveStockPrice: View {
         }
         .task(id: "\(symbol)-\(scenePhase)") {
             guard scenePhase == .active else { return }
-            tick=nil
+            if tick?.symbol != symbol { tick=nil }
+            connected=false
             await listen()
         }
     }
@@ -213,10 +233,12 @@ struct LiveStockPrice: View {
         components?.queryItems=[URLQueryItem(name:"symbols",value:symbol)]
         guard let url=components?.url else { return }
         let configuration=URLSessionConfiguration.ephemeral
+        configuration.urlCache=nil
+        configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
         configuration.timeoutIntervalForRequest=30
         configuration.timeoutIntervalForResource=86400
         let session=URLSession(configuration:configuration)
-        defer { session.invalidateAndCancel() }
+        defer { session.invalidateAndCancel(); connected=false }
         while !Task.isCancelled {
             do {
                 var request=URLRequest(url:url)
@@ -228,11 +250,12 @@ struct LiveStockPrice: View {
                     try Task.checkCancellation()
                     guard line.hasPrefix("data: "),let data=line.dropFirst(6).data(using:.utf8),
                           let payload=try? JSONDecoder().decode(LiveEnvelope.self,from:data) else { continue }
-                    tick=payload.quotes.first
+                    tick=payload.quotes.first(where: { $0.symbol == symbol })
                     delivery=max(0,(Date().timeIntervalSince1970-payload.sent_at)*1000)
                     connected=true
                 }
             } catch { connected=false }
+            connected=false
             if Task.isCancelled { break }
             try? await Task.sleep(for:.seconds(3))
         }

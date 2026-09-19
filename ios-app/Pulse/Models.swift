@@ -273,12 +273,23 @@ struct QuoteResponse: Decodable {
     let price: Double?
     let chgPct: Double?
     let bars: [Bar]
+    let asOf: String?
+    let source: String?
+    let cacheStale: Bool?
+    let cacheAgeSeconds: Double?
+    let cacheWarning: String?
+    let fresh: Bool?
 
     enum CodingKeys: String, CodingKey {
         case symbol
         case price
         case chgPct = "chg_pct"
         case bars
+        case asOf = "as_of"
+        case source, fresh
+        case cacheStale = "cache_stale"
+        case cacheAgeSeconds = "cache_age_seconds"
+        case cacheWarning = "cache_warning"
     }
 }
 
