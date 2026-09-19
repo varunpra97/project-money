@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
-# Start the mobile trading-insights API (paper trading only) on port 8504.
+# Start the Pulse mobile API (paper trading only) on 127.0.0.1:8504.
 set -euo pipefail
-cd "$(dirname "$0")/.."   # options-seller/ (so `api` and `src` resolve)
-exec ~/workspace/venv-money/bin/python -m uvicorn api.main:app \
-  --host 127.0.0.1 --port 8504
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$ROOT"
+PY="${ROOT}/.venv/bin/python"
+if [[ ! -x "$PY" ]]; then
+  PY="$(command -v python3)"
+fi
+exec env PYTHONPATH=src "$PY" -m uvicorn api.main:app --host 127.0.0.1 --port 8504

@@ -26,6 +26,7 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from fastapi import FastAPI, Query
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -33,12 +34,15 @@ from options_seller.config import load_defaults
 from options_seller.models.scanner import PortfolioContext
 from options_seller.portfolio.api import (
     days_held,
+    list_open,
     load_executor,
     pct_of_max_profit,
     portfolio_greeks_est,
     summary_metrics,
 )
 from options_seller.portfolio.scanner_feed import build_candidates, load_scan_envelope
+
+from options_seller.risk.limits import evaluate_book, risk_limits_from_config
 
 # ── Sibling stock-data-scanner modules (same importlib pattern as dashboard) ──
 _SCANNER = ROOT.parent / "stock-data-scanner"
@@ -164,12 +168,90 @@ def _celeb_symbols() -> list[str]:
 
 
 # ── App ──────────────────────────────────────────────────────────────────────
-app = FastAPI(title="Options Seller Mobile API", version="1.0.0")
+app = FastAPI(title="Options Seller Mobile API", version="1.1.0")
+
+# Clients (iOS / Android / web) may call this API cross-origin when using a
+# dedicated backend base URL. Streamlit dashboards stay same-origin via Caddy.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["*"],
+)
 
 
 @app.get("/api/health")
 async def health():
-    return {"ok": True}
+    """Liveness + coarse dependency flags for mobile/ops."""
+    scan_ok = False
+    try:
+        import urllib.request
+
+        with urllib.request.urlopen("http://127.0.0.1:8080/api/scan", timeout=2) as r:
+            scan_ok = r.status == 200
+    except Exception:
+        try:
+            with urllib.request.urlopen("http://127.0.0.1:8502/api/scan", timeout=2) as r:
+                scan_ok = r.status == 200
+        except Exception:
+            scan_ok = False
+    return {
+        "ok": True,
+        "service": "pulse-api",
+        "version": "1.1.0",
+        "paper_trading_only": True,
+        "scan_feed_reachable": scan_ok,
+        "as_of": _now_iso(),
+    }
+
+
+@app.get("/api/risk/status")
+@_api
+async def risk_status():
+    """$50k max portfolio risk hard cap (paper book). Soft warn at 80%."""
+
+    def _build():
+        ex = load_executor()
+        opens = [p for p in list_open(ex) if p.get("status") == "open"]
+        lim = risk_limits_from_config()
+        book = evaluate_book(opens, lim)
+        book["as_of"] = _now_iso()
+        book["paper_trading_only"] = True
+        return book
+
+    return cached(15, "risk:status", _build)
+
+
+@app.get("/api/scan")
+@_api
+async def scan_proxy():
+    """Same scan envelope as Caddy /api/scan — one baseURL for mobile clients."""
+
+    def _build():
+        import json
+        import urllib.request
+
+        for url in (
+            "http://127.0.0.1:8080/api/scan",
+            "http://127.0.0.1:8502/api/scan",
+        ):
+            try:
+                with urllib.request.urlopen(url, timeout=8) as r:
+                    return json.loads(r.read().decode("utf-8"))
+            except Exception:
+                continue
+        # Fall back to on-disk envelope used by dashboard
+        env = load_scan_envelope()
+        if env is not None:
+            if hasattr(env, "model_dump"):
+                return env.model_dump(mode="json")
+            if isinstance(env, dict):
+                return env
+        return {"error": "scan_unavailable", "schema": "stock-data-scanner.scan/v0.1"}
+
+    return cached(30, "scan:proxy", _build)
+
 
 
 @app.get("/api/portfolio/summary")

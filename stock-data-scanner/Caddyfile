@@ -6,6 +6,13 @@
 		reverse_proxy 127.0.0.1:8502
 	}
 
+	handle /pulse* {
+		reverse_proxy 127.0.0.1:8504 {
+			header_up Host {host}
+			header_up X-Real-IP {remote_host}
+		}
+	}
+
 	# Serve Streamlit hashed assets from disk — missing chunks must 404 as JS, not SPA HTML
 	handle /static/* {
 		root * /workspace/stock-data-scanner/.venv/lib/python3.13/site-packages/streamlit/static

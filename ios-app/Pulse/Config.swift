@@ -8,5 +8,5 @@ enum AppConfig {
     /// NOTE: tunnel URLs (trycloudflare.com) change when the backend restarts —
     /// if the app suddenly can't reach the API, paste the fresh URL here and rebuild.
     /// The API is served under the /pulse path on the public host.
-    static let baseURL = "https://guided-appears-surname-yang.trycloudflare.com/pulse"
+    static let baseURL = "https://views-pill-radical-templates.trycloudflare.com/pulse"
 }
