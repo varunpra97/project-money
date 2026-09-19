@@ -9,6 +9,26 @@ struct HomeView: View {
     @State private var range: QuoteRange = .oneDay
     @State private var selectedDate: Date?
     @State private var expandedId: String?
+    @State private var positionMetric = "Total gain/loss"
+    private let positionMetrics = ["Total gain/loss", "Today’s gain/loss", "Percent change", "Total equity"]
+
+    private func positionValue(_ pos: Position) -> Double? {
+        switch positionMetric {
+        case "Today’s gain/loss": return pos.dayPnl
+        case "Percent change": return pos.returnPct
+        case "Total equity": return pos.equity
+        default: return pos.unrealized
+        }
+    }
+
+    private var metricNote: String {
+        switch positionMetric {
+        case "Today’s gain/loss": return "Unavailable: prior-day option marks have not been recorded."
+        case "Percent change": return "Gain/loss as a percentage of opening premium, using saved marks."
+        case "Total equity": return "Saved net option value; short positions are liabilities. Excludes collateral and underlying shares."
+        default: return "Open-position gain/loss using saved marks, not live quotes."
+        }
+    }
     @State private var error: String?
     @State private var loading = true
 
@@ -129,6 +149,11 @@ struct HomeView: View {
     private var positionsSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             SectionHeader("Positions", subtitle: summary.map { "\($0.openPositions) open" })
+            Picker("Position value display", selection: $positionMetric) {
+                ForEach(positionMetrics, id: \.self) { Text($0).tag($0) }
+            }
+            .pickerStyle(.menu)
+            Text(metricNote).font(.caption).foregroundStyle(Color.pulseSecondary)
             if loading && positions.isEmpty {
                 ForEach(0..<3, id: \.self) { _ in
                     RoundedRectangle(cornerRadius: 14)
@@ -167,9 +192,9 @@ struct HomeView: View {
                     }
                     Spacer()
                     VStack(alignment: .trailing, spacing: 2) {
-                        Text(signedMoney(pos.unrealized))
+                        Text(positionMetric == "Percent change" ? pct(positionValue(pos)) : positionMetric == "Total equity" ? money(positionValue(pos)) : signedMoney(positionValue(pos)))
                             .font(.headline)
-                            .foregroundStyle(pnlColor(pos.unrealized))
+                            .foregroundStyle(positionMetric == "Total equity" ? Color.primary : pnlColor(positionValue(pos)))
                         if let dte = pos.dte {
                             Text("\(dte) DTE")
                                 .font(.caption)
@@ -183,6 +208,22 @@ struct HomeView: View {
                 }
             }
             .buttonStyle(.plain)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Expiration: \(pos.expiry ?? "Not recorded")")
+                if let legs = pos.legs, !legs.isEmpty {
+                    ForEach(Array(legs.enumerated()), id: \.offset) { _, leg in
+                        Text("\(leg.side?.capitalized ?? "—") \(leg.quantity.map { String(format: "%g", $0) } ?? "—") · \(leg.optionType ?? "Option") · Strike \(money(leg.strike))")
+                        if let expiry = leg.expiry {
+                            Text("Exp \(expiry)")
+                        }
+                    }
+                } else {
+                    Text("Strike: Not recorded")
+                }
+            }
+            .font(.caption)
+            .foregroundStyle(Color.pulseSecondary)
 
             if expandedId == pos.id {
                 Divider().background(Color.white.opacity(0.08))

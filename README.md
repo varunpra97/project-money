@@ -18,6 +18,7 @@ Paper-trading options insights stack: **stock scanners + Pulse API backend** on 
 
 ## Quick links
 
+- Windows/macOS setup and agent commands: [Run the server](docs/RUN_SERVER.md)
 - Pulse health: `{BACKEND_BASE}/pulse/api/health`
 - Scan feed: `{BACKEND_BASE}/api/scan` (schema `stock-data-scanner.scan/v0.1`)
 - Risk: `{BACKEND_BASE}/pulse/api/risk/status` ($50k hard cap, paper)

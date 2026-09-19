@@ -5,7 +5,7 @@ import json
 import math
 import re
 import time
-from fastapi import APIRouter, Query, Request
+from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 
 router = APIRouter(prefix="/api")
@@ -109,11 +109,12 @@ async def latest(symbols: str = Query(...,max_length=300)):
     requested=list(dict.fromkeys(s.strip().upper() for s in symbols.split(',')))[:20]
     requested=[s for s in requested if re.fullmatch(r'[A-Z0-9^][A-Z0-9.^=-]{0,19}',s)]
     async with live_prices.lock:
+        live_prices.wanted={s:t for s,t in live_prices.wanted.items() if time.time()-t<900}
         # Bound subscriptions independently of clients.
         for s in requested:
             if s in live_prices.wanted or len(live_prices.wanted)<100:
                 live_prices.wanted[s]=time.time()
-        live_prices.wanted={s:t for s,t in live_prices.wanted.items() if time.time()-t<900}
+            else: raise HTTPException(429, "Live subscription capacity reached; retry later.")
     return {"quotes":[live_prices.snapshot(s) for s in requested],"refresh_seconds":2}
 
 
@@ -122,7 +123,6 @@ async def events(request: Request, symbols: str = Query(...,max_length=300)):
     initial=await latest(symbols)
     selected=[q['symbol'] for q in initial['quotes']]
     async def stream():
-        previous=None
         while not await request.is_disconnected():
             changed=live_prices.changed
             payload={"quotes":[live_prices.snapshot(s) for s in selected],"sent_at":time.time()}

@@ -8,8 +8,10 @@ const Search = lazy(() => import("./tabs/Search"));
 const Activity = lazy(() => import("./tabs/Activity"));
 
 const Performance = lazy(() => import("./tabs/Performance"));
+const Historical = lazy(() => import("./tabs/Historical"));
 const News = lazy(() => import("./tabs/News"));
 const TABS_UNSORTED = [
+  { key: "historical", label: "Scanners", icon: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M4 4v16h16M7 15l4-5 4 2 5-6"/></svg> },
   { key: "performance", label: "Stats", icon: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M4 20V10m8 10V4m8 16V8"/></svg> },
   { key: "news", label: "News", icon: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M7 8h10M7 12h10M7 16h6"/></svg> },
   {
@@ -46,7 +48,7 @@ const TABS_UNSORTED = [
   },
 ] as const;
 
-const ORDER = ["home", "performance", "news", "discover", "search", "activity"];
+const ORDER = ["home", "performance", "news", "discover", "search", "historical", "activity"];
 const TABS = [...TABS_UNSORTED].sort((a,b) => ORDER.indexOf(a.key)-ORDER.indexOf(b.key));
 type TabKey = (typeof TABS)[number]["key"];
 
@@ -75,6 +77,7 @@ class TabErrorBoundary extends Component<{ children: ReactNode; tab: string }, {
             This tab hit a rendering error. Your data is safe — try reloading it.
           </div>
           <button
+            type="button"
             className="retry-btn"
             style={{ marginTop: 12 }}
             onClick={() => this.setState({ failed: false })}
@@ -96,7 +99,7 @@ export default function App() {
   if (params.get("assistant") === "1") return <Assistant standalone screen={params.get("screen") || "iOS app"}/>;
   return (
     <div className={`app ${assistantOpen ? "with-assistant" : ""}`}>
-      <button className="assistant-launch" onClick={()=>setAssistantOpen(v=>!v)} aria-expanded={assistantOpen}>✦ Assistant</button>
+      <button type="button" className="assistant-launch" onClick={()=>setAssistantOpen(v=>!v)} aria-expanded={assistantOpen}>✦ Assistant</button>
       {assistantOpen && <Assistant screen={tab} onClose={()=>setAssistantOpen(false)}/>}
       <main className="main" key={tab}>
         <TabErrorBoundary tab={tab} key={tab}>
@@ -104,6 +107,7 @@ export default function App() {
             {tab === "home" && <Home />}
             {tab === "performance" && <Performance />}
             {tab === "news" && <News />}
+            {tab === "historical" && <Historical />}
             {tab === "discover" && <Discover />}
             {tab === "search" && <Search />}
             {tab === "activity" && <Activity />}
@@ -114,6 +118,7 @@ export default function App() {
         <div className="tabbar-inner">
           {TABS.map((t) => (
             <button
+              type="button"
               key={t.key}
               className={`tab${tab === t.key ? " active" : ""}`}
               aria-current={tab === t.key ? "page" : undefined}

@@ -24,7 +24,7 @@ Ticker Search retrieves each requested symbol independently of watchlists.
 Charts offer OHLC candlesticks/line, volume, SMA 20, EMA 20 and Bollinger Bands
 (20 periods, 2 population standard deviations), zoom, history navigation and
 bar inspection. Indicators need 20 bars and use the selected interval. Yahoo
-Finance data can be delayed; this is not an exchange streaming feed or a
+Finance data can be delayed; this is not a guaranteed exchange-real-time feed or a
 licensed TradingView terminal.
 
 Run `bash setup-pulse-assistant.sh` once to install the pinned official Codex
@@ -44,3 +44,31 @@ Backend changes require restart. Restarting the backend interrupts active chat
 work. Conversations persist, but in-flight work does not resume automatically.
 Credentials, pairing state, conversations, installed tooling and portfolio data
 are excluded from Git. Never copy them into commits.
+
+
+### Live prices and latency
+
+`GET /api/live?symbols=AAPL,MSFT` returns latest dated quotes.
+`GET /api/live/events?symbols=AAPL,MSFT` streams Server-Sent Events; both clients
+use this push path with automatic reconnect. The backend shares one Yahoo
+WebSocket subscription set, follows paper-position underlyings and requested
+symbols, and falls back to minute-bar HTTP checks every 20 seconds when updates
+stop. Candle history refreshes every 20 seconds independently. Saved option
+marks/Greeks are not relabelled live. A quiet or closed market shows the source
+age and last available price. Caddy flushes SSE immediately; disable buffering
+in any additional Windows proxy. This implementation uses portable asyncio
+and works on supported Python runtimes; Windows deployment remains unverified.
+
+Run the real TCP integration benchmark from `options-seller`:
+
+```bash
+PYTHONPATH=src:. api/.venv-pulse/bin/python -m unittest discover -s tests/integration -p test_live_latency.py -v
+```
+
+It checks 100 ordered ticks across three clients, concurrent blocking provider
+work off the event loop, reconnect snapshots, invalid ticks, and stale labels.
+Local reference run: p50 2.00 ms, p95 2.49 ms, max 3.36 ms. Regression budgets:
+p95 <250 ms and max <1 s to allow CI overhead. These numbers exclude provider
+latency, public proxy/WAN/Wi-Fi, and native rendering. In-app delivery estimates
+use server/device clocks and are approximate. Next deployment checks should
+measure Windows-to-client p50/p95 and clock offset with a licensed live source.

@@ -81,7 +81,7 @@ All routes work at `/api/...` on :8504 and at `/pulse/api/...` via Caddy.
 
 CORS: permissive `*` for GET/POST (mobile may use a dedicated base URL).
 
-Errors: handlers prefer HTTP 200 with `{"error": "..."}` for data problems (mobile never blank-screens).
+Errors: data handlers return structured `{"error": "..."}` with HTTP 502 for provider failures. Clients display the error and retain only explicitly dated successful data.
 
 ### Example curls
 
@@ -115,7 +115,7 @@ cd /workspace/options-seller   # or repo checkout path on the box
 caddy reload --config stock-data-scanner/Caddyfile --adapter caddyfile
 ```
 
-Local laptop dev: run Pulse + point `BASE` at localhost, or use demo fallbacks built into `mobile-app`.
+Local laptop dev: run Pulse + point `BASE` at localhost, using `bash start-pulse-backend.sh` (development port 8505). Debug iOS builds use the Mac; release builds use the canonical public backend.
 
 ## Risk rules (paper)
 
@@ -143,3 +143,15 @@ Local laptop dev: run Pulse + point `BASE` at localhost, or use demo fallbacks b
 | `stock-data-scanner/LIVE_PROXY.md` | Why Caddy stays on 8080 |
 | `mobile-app/` | PWA client |
 | `ios-app/` | SwiftUI Pulse client |
+
+
+## Pulse extensions (web and iOS)
+
+Performance (`/api/performance`), RSS news (`/api/news`), ticker details
+(`/api/symbol/{symbol}`), live stock snapshots and SSE (`/api/live`,
+`/api/live/events`) now share this backend. See `options-seller/api/README.md`
+for freshness, latency, and history coverage. Caddy must flush SSE without
+buffering. The paired coding assistant is a local development service, not an
+unauthenticated public endpoint: only approved hosts and paired tokens can use
+it. Public deployment of that service requires a deliberate authenticated
+setup; never forward local bootstrap credentials through the public proxy.

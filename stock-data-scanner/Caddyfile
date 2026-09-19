@@ -8,6 +8,7 @@
 
 	handle /pulse* {
 		reverse_proxy 127.0.0.1:8504 {
+			flush_interval -1
 			header_up Host {host}
 			header_up X-Real-IP {remote_host}
 		}

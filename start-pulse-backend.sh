@@ -9,7 +9,7 @@ PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
 API_DIR="$PROJECT_DIR/options-seller/api"
 DATA_DIR="$PROJECT_DIR/options-seller/data"
 VENV_DIR="$API_DIR/.venv-pulse"
-PORT=8505
+PORT="${PULSE_PORT:-8505}"
 
 mkdir -p "$DATA_DIR"
 cd "$API_DIR"
@@ -19,11 +19,12 @@ if [ ! -d "$VENV_DIR" ]; then
   python3 -m venv "$VENV_DIR"
 fi
 
-"$VENV_DIR/bin/pip" install -q fastapi "uvicorn[standard]" pydantic yfinance 2>/dev/null || \
-  "$VENV_DIR/bin/pip" install -q fastapi uvicorn pydantic yfinance
+"$VENV_DIR/bin/python" -m pip install -r "$API_DIR/requirements.txt"
+npm --prefix "$PROJECT_DIR/mobile-app" ci
+npm --prefix "$PROJECT_DIR/mobile-app" run build
 
 # Seed demo paper-trading portfolio if missing
-if [ ! -f "$DATA_DIR/paper_portfolio.json" ]; then
+if [ "${PULSE_SEED_DEMO:-0}" = "1" ] && [ ! -f "$DATA_DIR/paper_portfolio.json" ]; then
   echo "Seeding demo paper portfolio..."
   cat > "$DATA_DIR/paper_portfolio.json" <<'SEED_EOF'
 {
@@ -128,5 +129,23 @@ SEED_EOF
   echo "seeded demo portfolio"
 fi
 
-echo "Starting Pulse backend on 0.0.0.0:$PORT ..."
-exec "$VENV_DIR/bin/python" -m uvicorn main:app --host 0.0.0.0 --port "$PORT"
+
+# Auto-detect LAN IP for assistant Host allowlist + QR pair_url (phones on same Wi-Fi).
+# Does not touch shared Caddy on :8080.
+detect_lan_ip() {
+  ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null || true
+}
+LAN_IP="${PULSE_LAN_IP:-$(detect_lan_ip)}"
+if [ -n "${LAN_IP}" ]; then
+  export PULSE_ALLOWED_HOSTS="${PULSE_ALLOWED_HOSTS:+$PULSE_ALLOWED_HOSTS,}${LAN_IP}"
+  export PULSE_PUBLIC_HOST="${PULSE_PUBLIC_HOST:-http://${LAN_IP}:${PORT}/pulse}"
+  echo "[pulse] LAN IP ${LAN_IP}"
+  echo "[pulse] PULSE_ALLOWED_HOSTS=${PULSE_ALLOWED_HOSTS}"
+  echo "[pulse] PULSE_PUBLIC_HOST=${PULSE_PUBLIC_HOST}"
+else
+  echo "[pulse] No LAN IP detected; set PULSE_ALLOWED_HOSTS / PULSE_PUBLIC_HOST if phones cannot pair."
+fi
+export PULSE_PUBLIC_HOST="${PULSE_PUBLIC_HOST:-http://127.0.0.1:${PORT}/pulse}"
+
+echo "Starting Pulse backend on ${PULSE_HOST:-127.0.0.1}:$PORT ..."
+exec "$VENV_DIR/bin/python" -m uvicorn main:app --host "${PULSE_HOST:-127.0.0.1}" --port "$PORT"

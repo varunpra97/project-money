@@ -8,13 +8,13 @@ from fastapi import HTTPException
 from starlette.requests import Request
 from api import main, assistant
 class QuoteTests(unittest.TestCase):
-    def setUp(self): main._cache.clear()
+    def setUp(self): main._cache.clear(); main.quote_cache.values.clear()
     def test_ohlc_volume_preserved_and_bad_rows_dropped(self):
         frame=pd.DataFrame({'Open':[10,11],'High':[13,float('nan')],'Low':[9,10],'Close':[12,11],'Volume':[1234,100]},index=pd.date_range('2026-01-01',periods=2,tz='UTC'))
-        with patch('yfinance.download',return_value=frame): result=main.quote('TEST','1mo',True)
+        with patch('yfinance.download',return_value=frame): result=asyncio.run(main.quote('TEST','1mo',True))
         self.assertEqual(result['bars'],[{'t':1767225600,'o':10,'h':13,'l':9,'c':12,'v':1234}])
     def test_empty_provider_response_not_cached(self):
-        with patch('yfinance.download',return_value=pd.DataFrame()): result=main.quote('TEST','1mo',True)
+        with patch('yfinance.download',return_value=pd.DataFrame()): result=asyncio.run(main.quote('TEST','1mo',True))
         self.assertEqual(result.status_code,502)
         self.assertNotIn('quote:TEST:1mo',main._cache)
 class AssistantSecurityTests(unittest.TestCase):

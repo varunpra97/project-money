@@ -20,3 +20,7 @@ stock-data-scanner/market_signals_cache.json
 *.xcuserstate
 **/.venv-pulse/
 options-seller/api/portfolio_data.json
+
+**/data/historical_scanners.json
+*.bak-pre-seamless
+ios-app/build/

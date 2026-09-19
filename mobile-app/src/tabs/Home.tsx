@@ -9,7 +9,12 @@ interface Summary {
   account_value: number; buying_power: number; day_pnl: number; day_pnl_pct: number;
   total_pnl: number; open_positions: number; greeks: Record<string, number>; as_of: string;
 }
+interface PositionLeg {
+  side?: string; option_type?: string; strike?: number; quantity?: number; expiry?: string | null;
+}
 interface Position {
+  expiry?: string | null; legs?: PositionLeg[];
+  day_pnl?: number | null; return_pct?: number | null; equity?: number | null;
   id: string; underlying: string; strategy: string; display_name: string;
   opened_at: string; dte: number; qty: number; credit: number; unrealized: number;
   pct_of_max_profit: number; days_held: number; risk_label: string;
@@ -85,7 +90,11 @@ function HeroChart({ symbol, label }: { symbol: string; label: string }) {
   );
 }
 
-function PositionCard({ p }: { p: Position }) {
+const positionMetrics = { unrealized: "Total gain/loss", day_pnl: "Today’s gain/loss", return_pct: "Percent change", equity: "Total equity" };
+type PositionMetric = keyof typeof positionMetrics;
+
+function PositionCard({ p, metric }: { p: Position; metric: PositionMetric }) {
+  const value = p[metric];
   const [open, setOpen] = useState(false);
   return (
     <div className="card" onClick={() => setOpen((o) => !o)} role="button" aria-expanded={open} tabIndex={0}
@@ -96,10 +105,19 @@ function PositionCard({ p }: { p: Position }) {
           <div className="strat">{p.display_name}</div>
         </div>
         <div>
-          <div className={`pnl ${cls(p.unrealized)}`}>{moneySigned(p.unrealized)}</div>
+          <div className={`pnl ${metric === "equity" ? "" : cls(value)}`}>{metric === "return_pct" ? pctPts(value) : metric === "equity" ? money(value) : moneySigned(value)}</div>
           <div className="meta"><span className="badge">{p.dte} DTE</span></div>
         </div>
       </div>
+      <div className="meta" style={{ marginTop: 10 }}>
+        Expiration: {p.expiry ? fmtDate(p.expiry) : "Not recorded"}
+      </div>
+      {p.legs?.length ? p.legs.map((leg, i) => (
+        <div className="meta" key={i} style={{ marginTop: 4 }}>
+          {leg.side === "sell" ? "Sell" : leg.side === "buy" ? "Buy" : "—"} {leg.quantity ?? "—"} · {leg.option_type ?? "Option"} · Strike {money(leg.strike)}
+          {leg.expiry && <> · Exp {fmtDate(leg.expiry)}</>}
+        </div>
+      )) : <div className="meta">Strike: Not recorded</div>}
       {open && (
         <div className="detail-grid">
           <div className="detail-cell"><div className="k">Credit</div><div className="v">{money(p.credit)}</div></div>
@@ -115,6 +133,7 @@ function PositionCard({ p }: { p: Position }) {
 }
 
 export default function Home() {
+  const [metric, setMetric] = useState<PositionMetric>("unrealized");
   const s = useApi<Summary>("/api/portfolio/summary");
   const pos = useApi<{ positions: Position[] } | Position[]>("/api/portfolio/positions");
   // The API wraps the list ({positions: [...]}) while demo data is a bare array.
@@ -150,12 +169,23 @@ export default function Home() {
       <div className="section-title">Positions
         <span className="badge">{s.data?.open_positions ?? positions.length} open</span>
       </div>
+      <label className="meta" style={{ display: "block", marginBottom: 10 }}>
+        Display <select aria-label="Position value display" value={metric} onChange={e => setMetric(e.target.value as PositionMetric)}>
+          {Object.entries(positionMetrics).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+        </select>
+      </label>
+      <div className="caption" style={{ marginBottom: 10 }}>
+        {metric === "day_pnl" ? "Unavailable: prior-day option marks have not been recorded."
+          : metric === "return_pct" ? "Gain/loss as a percentage of opening premium, using saved marks."
+          : metric === "equity" ? "Saved net option value; short positions are liabilities. Excludes collateral and underlying shares."
+          : "Open-position gain/loss using saved marks, not live quotes."}
+      </div>
       {pos.loading && !positions.length ? (
         <><div className="sk" style={{ height: 76, marginBottom: 10 }} /><div className="sk" style={{ height: 76 }} /></>
       ) : positions.length === 0 ? (
         <div className="empty">No open positions.<br />Paper-trade from the desktop dashboard to see them here.</div>
       ) : (
-        positions.map((p) => <PositionCard key={p.id} p={p} />)
+        positions.map((p) => <PositionCard key={p.id} p={p} metric={metric} />)
       )}
       {s.data && (
         <div className="caption">

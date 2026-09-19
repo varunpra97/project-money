@@ -22,6 +22,7 @@ struct ContentView: View {
                     NewsView().tabItem { Label("News", systemImage: "newspaper") }.tag("News")
                     DiscoverView().tabItem { Label("Discover", systemImage: "sparkles") }.tag("Discover")
                     SearchView().tabItem { Label("Search", systemImage: "magnifyingglass") }.tag("Search")
+                    HistoricalScannersView().tabItem { Label("Scanners", systemImage: "clock.arrow.circlepath") }.tag("Scanners")
                     ActivityView().tabItem { Label("Activity", systemImage: "list.bullet") }.tag("Activity")
                 }
                 .tint(.pulseGreen)
@@ -33,16 +34,16 @@ struct ContentView: View {
                     }.padding(.horizontal).padding(.vertical, 8).background(Color.pulseBg)
                 }
                 if assistantOpen && geometry.size.width >= 850 {
-                    AssistantWebView(screen: selectedTab).frame(width: 380)
+                    NativeAssistantView(screen: selectedTab).frame(width: 380)
                 }
             }
             .sheet(isPresented: Binding(get: { assistantOpen && geometry.size.width < 850 }, set: { if !$0 { assistantOpen = false } })) {
                 NavigationStack {
-                    AssistantWebView(screen: selectedTab)
+                    NativeAssistantView(screen: selectedTab)
                         .navigationTitle("Pulse Assistant")
                         .navigationBarTitleDisplayMode(.inline)
                         .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { assistantOpen = false } } }
-                }.presentationDetents([.medium, .large]).presentationDragIndicator(.visible)
+                }.presentationDetents([.large]).presentationDragIndicator(.visible)
             }
         }
     }

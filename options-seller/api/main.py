@@ -12,6 +12,11 @@ cache, and /api/quote caches per range.
 from __future__ import annotations
 
 import asyncio
+from contextlib import asynccontextmanager
+import logging
+import re
+import math
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeout
 import functools
 import importlib.util
 import sys
@@ -67,6 +72,7 @@ _signals = _load_module("market_signals_api", _SCANNER / "market_signals.py")
 # ── In-memory TTL cache ──────────────────────────────────────────────────────
 _cache: dict[str, tuple[float, Any]] = {}
 _cache_lock = threading.Lock()
+_key_locks: dict[str, threading.Lock] = {}
 
 
 def cached(ttl: int, key: str, fn: Callable[[], Any]) -> Any:
@@ -76,86 +82,40 @@ def cached(ttl: int, key: str, fn: Callable[[], Any]) -> Any:
         hit = _cache.get(key)
         if hit is not None and hit[0] > now:
             return hit[1]
-    val = fn()
-    # Never cache error payloads — transient failures must not stick.
-    if isinstance(val, dict) and "error" in val:
-        return val
+    # Coalesce concurrent misses so clients share a single upstream fetch.
     with _cache_lock:
-        _cache[key] = (time.monotonic() + ttl, val)
-    return val
-
-
-# ── Async SWR cache: slow network fetches never block the event loop ──────────
-_swr_cache: dict[str, tuple[float, Any]] = {}
-_swr_lock = threading.Lock()
-_swr_inflight: dict[str, asyncio.Task] = {}
-
-
-async def _swr_refresh(ttl: int, key: str, fn: Callable[[], Any]) -> Any:
-    """Run fn in a threadpool and store the result. Error payloads are
-    returned but never cached; unexpected exceptions become an error dict."""
-    try:
-        val = await asyncio.to_thread(fn)
-    except Exception as e:  # noqa: BLE001 - fetch must never explode the cache
-        return {"error": f"{type(e).__name__}: {e}"}
-    if isinstance(val, dict) and "error" in val:
+        key_lock = _key_locks.setdefault(key, threading.Lock())
+    with key_lock:
+        with _cache_lock:
+            hit = _cache.get(key)
+            if hit is not None and hit[0] > time.monotonic():
+                return hit[1]
+        val = fn()
+        if isinstance(val, dict) and "error" in val:
+            return val
+        with _cache_lock:
+            _cache[key] = (time.monotonic() + ttl, val)
         return val
-    with _swr_lock:
-        _swr_cache[key] = (time.monotonic() + ttl, val)
-    return val
-
-
-async def cached_swr(
-    ttl: int,
-    key: str,
-    fn: Callable[[], Any],
-    stale_while_revalidate: int = 600,
-) -> Any:
-    """Stale-while-revalidate cache for slow (network) fetches.
-
-    - Fresh hit: return immediately.
-    - Stale hit within the grace window: return stale immediately and refresh
-      in the background (single-flight: concurrent callers share one refresh).
-    - Stale beyond the grace window, or cold miss: wait for the refresh, but
-      the fetch runs in a threadpool so the event loop stays responsive.
-    """
-    now = time.monotonic()
-    with _swr_lock:
-        hit = _swr_cache.get(key)
-        task = _swr_inflight.get(key)
-
-    if hit is not None:
-        expires_at, val = hit
-        if expires_at > now:
-            return val
-        # Stale: ensure a single background refresh is running.
-        if task is None or task.done():
-            task = asyncio.create_task(_swr_refresh(ttl, key, fn))
-            with _swr_lock:
-                _swr_inflight[key] = task
-        if expires_at + stale_while_revalidate > now:
-            return val  # serve stale now; refresh continues in background
-        # Very old: wait briefly for the refresh, else fall back to stale.
-        try:
-            fresh = await asyncio.wait_for(asyncio.shield(task), timeout=25)
-            return fresh if fresh is not None else val
-        except (asyncio.TimeoutError, Exception):
-            return val
-
-    # Cold miss: fetch in a threadpool (never blocks the event loop).
-    return await _swr_refresh(ttl, key, fn)
 
 
 def _api(fn):
     """Never 500 on data problems: return structured JSON with an error field."""
 
+    if asyncio.iscoroutinefunction(fn):
+        @functools.wraps(fn)
+        async def async_wrapper(*args, **kwargs):
+            try: return await fn(*args, **kwargs)
+            except Exception as e:
+                return JSONResponse({"error": f"{type(e).__name__}: {e}"}, status_code=502)
+        return async_wrapper
+
     @functools.wraps(fn)
-    async def wrapper(*args, **kwargs):
+    def wrapper(*args, **kwargs):
         try:
-            return await fn(*args, **kwargs)
+            return fn(*args, **kwargs)
         except Exception as e:  # noqa: BLE001 - deliberate graceful degradation
             return JSONResponse(
-                {"error": f"{type(e).__name__}: {e}"}, status_code=200
+                {"error": f"{type(e).__name__}: {e}"}, status_code=502
             )
 
     return wrapper
@@ -230,7 +190,36 @@ def _celeb_symbols() -> list[str]:
 
 
 # ── App ──────────────────────────────────────────────────────────────────────
-app = FastAPI(title="Options Seller Mobile API", version="1.1.0")
+@asynccontextmanager
+async def lifespan(app):
+    async def observe():
+        while True:
+            try:
+                await asyncio.to_thread(performance)
+                def tracked_symbols():
+                    return [p.get("underlying", "") for p in load_executor().list_open()]
+                for symbol in await asyncio.to_thread(tracked_symbols):
+                    if symbol:
+                        live_prices.wanted[symbol.upper()] = time.time()
+                        await quote(symbol, "1d", False)
+            except Exception:
+                logging.exception("Unable to record paper performance snapshot")
+            await asyncio.sleep(60)
+    live_prices.task = asyncio.create_task(live_prices.run())
+    quote_cache.worker = asyncio.create_task(quote_cache.maintain())
+    task = asyncio.create_task(observe())
+    yield
+    await live_prices.stop()
+    await quote_cache.close()
+    if bridge.proc and bridge.proc.returncode is None:
+        bridge.proc.terminate()
+    task.cancel()
+    try:
+        await task
+    except asyncio.CancelledError:
+        pass
+
+app = FastAPI(title="Options Seller Mobile API", version="1.1.0", lifespan=lifespan)
 
 # Clients (iOS / Android / web) may call this API cross-origin when using a
 # dedicated backend base URL. Streamlit dashboards stay same-origin via Caddy.
@@ -243,8 +232,9 @@ app.add_middleware(
 )
 
 
+
 @app.get("/api/health")
-async def health():
+def health():
     """Liveness + coarse dependency flags for mobile/ops."""
     scan_ok = False
     try:
@@ -270,7 +260,7 @@ async def health():
 
 @app.get("/api/risk/status")
 @_api
-async def risk_status():
+def risk_status():
     """$50k max portfolio risk hard cap (paper book). Soft warn at 80%."""
 
     def _build():
@@ -287,7 +277,7 @@ async def risk_status():
 
 @app.get("/api/scan")
 @_api
-async def scan_proxy():
+def scan_proxy():
     """Same scan envelope as Caddy /api/scan — one baseURL for mobile clients."""
 
     def _build():
@@ -318,7 +308,7 @@ async def scan_proxy():
 
 @app.get("/api/portfolio/summary")
 @_api
-async def portfolio_summary():
+def portfolio_summary():
     def _build():
         ex = load_executor()
         m = summary_metrics(ex)
@@ -349,7 +339,7 @@ async def portfolio_summary():
 
 @app.get("/api/portfolio/positions")
 @_api
-async def portfolio_positions():
+def portfolio_positions():
     def _build():
         ex = load_executor()
         rows = []
@@ -365,6 +355,13 @@ async def portfolio_positions():
                     "display_name": _strat_name(p.get("strategy")),
                     "opened_at": p.get("opened_at"),
                     "dte": p.get("dte"),
+                    "expiry": p.get("expiry"),
+                    "day_pnl": None,  # No prior-day option marks are recorded.
+                    "return_pct": (float(p["unrealized_pnl"]) / abs(float(p["credit"])) * 100
+                                   if p.get("unrealized_pnl") is not None and p.get("credit") else None),
+                    "equity": (float(p["mark"]) * (-1 if p.get("credit_debit", "credit") == "credit" else 1)
+                               if p.get("mark") is not None else None),
+                    "legs": [{key: leg.get(key) for key in ("side", "option_type", "strike", "quantity", "expiry")} for leg in legs],
                     "qty": _contract_qty(legs),
                     "credit": _num(p.get("credit")),
                     "unrealized": _num(p.get("unrealized_pnl")),
@@ -382,7 +379,7 @@ async def portfolio_positions():
 
 @app.get("/api/portfolio/activity")
 @_api
-async def portfolio_activity():
+def portfolio_activity():
     def _build():
         ex = load_executor()
         fills = ex.list_fills() or []
@@ -413,24 +410,9 @@ async def portfolio_activity():
     return cached(30, "portfolio:activity", _build)
 
 
-@app.get("/api/news")
-@_api
-async def news(refresh: bool = Query(False)):
-    """RSS headlines + product ideas for the iOS/PWA News tab."""
-
-    def _build():
-        from api import news as news_mod
-
-        return news_mod.news_feed(refresh=bool(refresh))
-
-    # Short TTL when refresh requested; otherwise match mobile 10m cadence
-    ttl = 5 if refresh else 600
-    return cached(ttl, f"news:feed:{int(bool(refresh))}", _build)
-
-
 @app.get("/api/insights/celebrity")
 @_api
-async def insights_celebrity():
+def insights_celebrity():
     def _build():
         rows = _celeb_universe()
         if not rows:
@@ -474,7 +456,7 @@ def _signals_payload(symbols: list[str]) -> tuple[Optional[dict], bool]:
 
 @app.get("/api/insights/earnings")
 @_api
-async def insights_earnings():
+def insights_earnings():
     def _build():
         symbols = _celeb_symbols()
         if _signals is None or not symbols:
@@ -518,7 +500,7 @@ async def insights_earnings():
 
 @app.get("/api/insights/volatility")
 @_api
-async def insights_volatility():
+def insights_volatility():
     def _build():
         symbols = _celeb_symbols()
         if _signals is None or not symbols:
@@ -556,7 +538,7 @@ async def insights_volatility():
 
 @app.get("/api/candidates")
 @_api
-async def candidates():
+def candidates():
     def _build():
         envelope, status = load_scan_envelope()
         if envelope is None:
@@ -594,50 +576,130 @@ async def candidates():
 
 
 _QUOTE_RANGES = {
-    "1d": ("1d", "5m", 60),
-    "5d": ("5d", "15m", 900),
-    "1mo": ("1mo", "1d", 900),
-    "3mo": ("3mo", "1d", 900),
-    "1y": ("1y", "1wk", 900),
+    "1d": ("1d", "1m", 20),
+    "5d": ("5d", "15m", 20),
+    "1mo": ("1mo", "1d", 20),
+    "3mo": ("3mo", "1d", 20),
+    "1y": ("1y", "1d", 20),
 }
 
 
 @app.get("/api/quote/{symbol}")
 @_api
-async def quote(symbol: str, range: str = Query("1d")):
+async def quote(symbol: str, range: str = Query("1d"), refresh: bool = False):
     rng = str(range or "1d").lower()
     if rng not in _QUOTE_RANGES:
         return {"error": f"range must be one of {sorted(_QUOTE_RANGES)}"}
     period, interval, ttl = _QUOTE_RANGES[rng]
     sym = symbol.strip().upper()
+    if not re.fullmatch(r"[A-Z0-9^][A-Z0-9.^=-]{0,19}", sym):
+        raise ValueError("Invalid ticker symbol")
 
     def _build():
         import yfinance as yf
 
         df = yf.download(sym, period=period, interval=interval, progress=False,
-                         auto_adjust=True)
+                         auto_adjust=True, timeout=12, threads=False)
         if df is None or len(df) == 0:
-            return {"error": f"no quote data for {sym}"}
+            raise ValueError(f"No price history returned for {sym}. Check the ticker or retry; the provider may be unavailable.")
         # yfinance >= 1.x may return MultiIndex columns even for one ticker
         if hasattr(df.columns, "levels") and df.columns.nlevels > 1:
             df.columns = df.columns.get_level_values(0)
         closes = df["Close"].dropna() if "Close" in df.columns else df.iloc[:, 0].dropna()
-        bars = [
-            {"t": int(ts.timestamp()), "c": round(float(c), 2)}
-            for ts, c in closes.items()
-        ]
-        first, last = float(closes.iloc[0]), float(closes.iloc[-1])
+        bars = []
+        for ts, row in df.iterrows():
+            values = {key: float(row[column]) for key, column in
+                      [("o", "Open"), ("h", "High"), ("l", "Low"), ("c", "Close")]}
+            if not all(math.isfinite(v) for v in values.values()):
+                continue
+            volume = float(row.get("Volume", 0))
+            bars.append({"t": int(ts.timestamp()), **{k: round(v, 4) for k, v in values.items()},
+                         "v": max(0, int(volume)) if math.isfinite(volume) else 0})
+        if not bars:
+            raise ValueError(f"No complete OHLC bars available for {sym}")
+        first, last = bars[0]["c"], bars[-1]["c"]
         return {
             "symbol": sym,
             "price": round(last, 2),
             "chg_pct": round((last - first) / first * 100, 2) if first else 0.0,
             "bars": bars,
+            "as_of": datetime.fromtimestamp(bars[-1]["t"], timezone.utc).isoformat(),
+            "source": "Yahoo Finance",
+            "interval": interval,
         }
 
-    # Slow Yahoo fetch: stale-while-revalidate in a threadpool so chart loads
-    # never block the event loop (or the rest of the API).
-    return await cached_swr(ttl, f"quote:{sym}:{rng}", _build)
+    return await quote_cache.get(f"quote:{sym}:{rng}", _build, ttl=ttl, force=refresh)
 
+
+_STATS_POOL = ThreadPoolExecutor(max_workers=4)
+
+@app.get("/api/symbol/{symbol}")
+@_api
+def symbol_details(symbol: str, refresh: bool = False):
+    sym = symbol.strip().upper()
+    if not re.fullmatch(r"[A-Z0-9^][A-Z0-9.^=-]{0,19}", sym):
+        raise ValueError("Invalid ticker symbol")
+    def build():
+        import yfinance as yf
+        warnings = []
+        earning_future = _STATS_POOL.submit(_signals._earnings_dates, sym, datetime.now(timezone.utc).date()) if _signals else None
+        vol = {}
+        try:
+            bars = yf.Ticker(sym).history(period="3mo", interval="1d", auto_adjust=True, timeout=12)
+            vol = _signals.compute_volatility(bars) if _signals is not None else {}
+            if not vol: warnings.append("Not enough daily history for volatility statistics.")
+        except Exception:
+            warnings.append("Daily price history is temporarily unavailable.")
+        earning = None
+        if earning_future:
+            try:
+                e = _signals.classify_earnings(earning_future.result(timeout=5))
+                date = e.get("upcoming") or e.get("last_reported")
+                days = e.get("days_to")
+                if date:
+                    earning = {"symbol":sym,"company":sym,"earnings_date":str(date),"when":f"in {days} days" if days is not None else "last reported","status":"upcoming" if days is not None else "reported"}
+                else: warnings.append("The provider has no earnings date for this ticker (common for ETFs and indices).")
+            except Exception:
+                earning_future.cancel()
+                warnings.append("Earnings lookup timed out or is unavailable.")
+        return {"symbol":sym,"as_of":_now_iso(),"source":"Yahoo Finance · may be delayed","volatility":{"symbol":sym,"company":sym,**vol} if vol else None,"earnings":earning,"warnings":warnings}
+    if refresh:
+        with _cache_lock: _cache.pop(f"symbol:{sym}",None)
+    return cached(60,f"symbol:{sym}",build)
+
+
+# Performance and news use sync routes so disk/network work runs off the event loop.
+try:
+    from .analytics import performance
+    from .news import news_feed
+except ImportError:  # startup script runs from api/
+    from analytics import performance
+    from news import news_feed
+
+
+@app.get("/api/performance")
+def performance_endpoint(period: str = Query("lifetime", pattern="^(lifetime|week|month|quarter)$")):
+    return performance(period)
+
+
+@app.get("/api/news")
+def news_endpoint(refresh: bool = False):
+    return news_feed(refresh=refresh)
+
+
+try:
+    from .assistant import router as assistant_router, bridge
+    from .live import router as live_router, live_prices
+    from .cache import quote_cache
+    from .history import router as history_router
+except ImportError:
+    from assistant import router as assistant_router, bridge
+    from live import router as live_router, live_prices
+    from cache import quote_cache
+    from history import router as history_router
+app.include_router(assistant_router)
+app.include_router(live_router)
+app.include_router(history_router)
 
 # ── Frontend SPA (optional) ──────────────────────────────────────────────────
 _DIST = ROOT.parent / "mobile-app" / "dist"

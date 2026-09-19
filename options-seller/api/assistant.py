@@ -38,6 +38,8 @@ def check_origin(request):
     # Custom header prevents cross-site simple requests, including pairing requests.
     if request.headers.get("x-pulse-assistant") != "1": raise HTTPException(403, "Open the assistant from Pulse.")
     host = request.url.hostname or ""
+    # Host allowlist: localhost + optional LAN IP. Expand via PULSE_ALLOWED_HOSTS
+    # (comma-separated). start-pulse-backend.sh can auto-detect a LAN IP.
     allowed = {"localhost", "127.0.0.1", "::1", "10.0.0.160"}
     allowed.update(x.strip() for x in os.environ.get("PULSE_ALLOWED_HOSTS", "").split(",") if x.strip())
     if host not in allowed: raise HTTPException(403, "This host is not enabled for the local assistant.")
@@ -69,7 +71,24 @@ async def bootstrap(request: Request):
     if time.time() > Pairing.expires:
         Pairing.code = f"{secrets.randbelow(100000000):08d}"
         Pairing.expires = time.time() + 600
-    return {"token": secret_token(), "pairing_code": Pairing.code, "expires_at": Pairing.expires}
+    # PULSE_PUBLIC_HOST example: http://10.0.0.160:8505/pulse
+    public = (os.environ.get("PULSE_PUBLIC_HOST") or "").rstrip("/")
+    if not public:
+        try:
+            public = str(request.base_url).rstrip("/")
+            root = (request.scope.get("root_path") or "").rstrip("/")
+            if root and not public.endswith(root):
+                public = public + root
+        except Exception:
+            public = ""
+    pair_url = f"{public}/?assistant=1&pair={Pairing.code}" if public else None
+    return {
+        "token": secret_token(),
+        "pairing_code": Pairing.code,
+        "expires_at": Pairing.expires,
+        "pair_url": pair_url,
+        "public_host": public or None,
+    }
 
 
 class PairInput(BaseModel):
@@ -150,10 +169,21 @@ class Bridge:
     async def ensure(self):
         async with self.start_lock:
             if self.proc and self.proc.returncode is None: return
-            exe = os.environ.get("PULSE_CODEX_BIN") or str(ROOT / ".pulse-tools/node_modules/.bin/codex")
-            if not Path(exe).exists(): exe = shutil.which("codex")
-            if not exe: raise RuntimeError("Codex runtime missing. Run the assistant setup script on your Mac.")
-            self.proc = await asyncio.create_subprocess_exec(exe, "app-server", "--stdio", cwd=ROOT,
+            override = os.environ.get("PULSE_CODEX_BIN")
+            entry = ROOT / ".pulse-tools/node_modules/@openai/codex/bin/codex.js"
+            node = shutil.which("node")
+            if override:
+                command = [override]
+            elif entry.exists() and node:
+                # Invoke the JS launcher directly; npm .cmd shims cannot be exec'd on Windows.
+                command = [node, str(entry)]
+            else:
+                exe = shutil.which("codex")
+                if not exe: raise RuntimeError("Codex runtime missing. Run the assistant setup script on this server.")
+                if os.name == "nt" and exe.lower().endswith((".cmd", ".bat")):
+                    raise RuntimeError("Install the local assistant runtime using setup-pulse-assistant.ps1.")
+                command = [exe]
+            self.proc = await asyncio.create_subprocess_exec(*command, "app-server", "--stdio", cwd=ROOT,
                 stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL,
                 limit=8*1024*1024)
             self.reader_task = asyncio.create_task(self.read())

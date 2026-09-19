@@ -255,15 +255,15 @@ struct SearchView: View {
     }
 
     private func reloadQuote() async {
-        let sym = symbol.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        let sym = quote?.symbol ?? ""
         guard !sym.isEmpty, quote != nil else { return }
         let ticket = requestID
         let requestedRange = range
         do {
             let result = try await APIClient.shared.quote(sym, range: requestedRange)
-            if ticket == requestID && range == requestedRange { quote = result }
+            if ticket == requestID && range == requestedRange { quote = result; error = nil }
         } catch {
-            self.error = error.localizedDescription
+            if ticket == requestID && range == requestedRange { self.error = error.localizedDescription }
         }
     }
 }

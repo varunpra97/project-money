@@ -38,6 +38,19 @@ struct PortfolioSummary: Decodable {
     }
 }
 
+struct PositionLeg: Decodable {
+    let side: String?
+    let optionType: String?
+    let strike: Double?
+    let quantity: Double?
+    let expiry: String?
+
+    enum CodingKeys: String, CodingKey {
+        case side, strike, quantity, expiry
+        case optionType = "option_type"
+    }
+}
+
 struct Position: Decodable, Identifiable {    let id: String
     let underlying: String
     let strategy: String
@@ -50,6 +63,11 @@ struct Position: Decodable, Identifiable {    let id: String
     let pctOfMaxProfit: Double?
     let daysHeld: Double?
     let riskLabel: String?
+    let expiry: String?
+    let legs: [PositionLeg]?
+    let dayPnl: Double?
+    let returnPct: Double?
+    let equity: Double?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -64,6 +82,9 @@ struct Position: Decodable, Identifiable {    let id: String
         case pctOfMaxProfit = "pct_of_max_profit"
         case daysHeld = "days_held"
         case riskLabel = "risk_label"
+        case expiry, legs, equity
+        case dayPnl = "day_pnl"
+        case returnPct = "return_pct"
     }
 }
 
