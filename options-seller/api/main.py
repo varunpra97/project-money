@@ -301,7 +301,15 @@ def scan_proxy():
         # A prepared server file is the quickest source; do not probe two services first.
         env, status = _load_scan_envelope(try_remote=False, allow_example=False)
         if env is not None:
-            return {**env.model_dump(mode="json", by_alias=True), "feed_status": status}
+            payload = {**env.model_dump(mode="json", by_alias=True), "feed_status": status}
+            theta = thetahedge_load()
+            if theta:
+                trows = theta.get("rows", {})
+                for res in payload.get("results", []):
+                    t = trows.get((res.get("symbol") or "").upper())
+                    if t:
+                        res["theta"] = t
+            return payload
         for url in (
             "http://127.0.0.1:8080/api/scan",
             "http://127.0.0.1:8502/api/scan",
@@ -319,6 +327,28 @@ def scan_proxy():
 
     return cached(30, "scan:proxy", _build)
 
+
+@app.get("/api/thetahedge")
+@_api
+def thetahedge_top(limit: int = Query(50, ge=1, le=500)):
+    """ThetaHedge volatility rankings — best risk/reward for selling options.
+
+    Sorted by wheel_rank ascending (rank 1 = best). Refreshed once a day by
+    the thetahedge_daily collector; served from the saved file here.
+    """
+
+    def _build():
+        data = thetahedge_load()
+        if not data:
+            return {"as_of": None, "total": 0, "rows": [],
+                    "error": "thetahedge_unavailable"}
+        rows = [r for r in data.get("rows", {}).values()
+                if (r.get("wheel_rank") or 0) > 0]
+        rows.sort(key=lambda r: r["wheel_rank"])
+        return {"as_of": data.get("asOf"), "total": len(rows),
+                "rows": rows[:limit]}
+
+    return cached(3600, f"thetahedge:top:{limit}", _build)
 
 
 @app.get("/api/portfolio/summary")
@@ -728,9 +758,11 @@ app.include_router(history_router)
 try:
     from .data_status import catalog
     from .collect_scan import collect as collect_scan
+    from .thetahedge import collect as thetahedge_collect, load as thetahedge_load
 except ImportError:
     from data_status import catalog
     from collect_scan import collect as collect_scan
+    from thetahedge import collect as thetahedge_collect, load as thetahedge_load
 
 
 async def collect_client_data():
@@ -754,7 +786,17 @@ async def collect_client_data():
             else:
                 await catalog.collect({"scan": scan_proxy})
             await asyncio.sleep(300)
-    workers = [asyncio.create_task(metadata()), asyncio.create_task(scanner())]
+    async def thetahedge_daily():
+        # ThetaHedge rankings refresh once a day (their table updates every
+        # 5 min during market hours; daily is plenty for our universe).
+        while True:
+            try:
+                await asyncio.to_thread(thetahedge_collect)
+            except Exception:
+                logging.exception("ThetaHedge daily collect failed")
+            await asyncio.sleep(86400)
+    workers = [asyncio.create_task(metadata()), asyncio.create_task(scanner()),
+               asyncio.create_task(thetahedge_daily())]
     try:
         await asyncio.gather(*workers)
     finally:
