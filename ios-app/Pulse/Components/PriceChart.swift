@@ -176,9 +176,9 @@ struct PriceChart: View {
                 }
             }
             if let date = selectedDate, let p = nearestPoint(visible,to:date) {
-                RuleMark(x:.value("Selected",p.date)).foregroundStyle(Color.white.opacity(0.5))
+                RuleMark(x:.value("Selected",p.date)).foregroundStyle(Color.black.opacity(0.5))
                 PointMark(x:.value("Selected",p.date), y:.value("Close",p.close))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(.black)
                     .symbolSize(CGSize(width: 14, height: 14))
             }
         }

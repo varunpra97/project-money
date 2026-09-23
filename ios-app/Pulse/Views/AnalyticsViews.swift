@@ -196,7 +196,7 @@ struct NewsView: View {
                                 VStack(alignment: .leading, spacing: 12) {
                                     Text("\(article.category.uppercased()) · \(article.source)\(article.stale ? " · cached" : "")").font(.caption2).foregroundStyle(Color.pulseGreen)
                                     if let url = URL(string: article.url) {
-                                        Link(destination: url) { Text(article.title + " ↗").font(.title3.weight(.semibold)).foregroundStyle(.white).multilineTextAlignment(.leading) }
+                                        Link(destination: url) { Text(article.title + " ↗").font(.title3.weight(.semibold)).foregroundStyle(.primary).multilineTextAlignment(.leading) }
                                     }
                                     Text(article.published ?? "Publication date unavailable").font(.caption2).foregroundStyle(Color.pulseSecondary)
                                 }.frame(maxWidth: .infinity, alignment: .leading).card()

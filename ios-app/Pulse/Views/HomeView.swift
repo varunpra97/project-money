@@ -235,7 +235,7 @@ struct HomeView: View {
 
             if expandedId == pos.id {
                 creditRiskSection(pos)
-                Divider().background(Color.white.opacity(0.08))
+                Divider().background(Color.black.opacity(0.08))
                 LazyVGrid(
                     columns: [GridItem(.flexible(), alignment: .leading),
                               GridItem(.flexible(), alignment: .leading)],
@@ -320,7 +320,7 @@ struct HomeView: View {
             }
         }
         .padding(12)
-        .background(Color.white.opacity(0.04))
+        .background(Color.black.opacity(0.04))
         .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 
