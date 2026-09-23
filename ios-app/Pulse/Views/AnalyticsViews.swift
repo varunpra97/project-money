@@ -161,6 +161,24 @@ struct ProductIdea: Decodable, Identifiable {
         "Implement this approved Pulse product upgrade in the web and iPhone apps where applicable. Inspect existing code, preserve unrelated work, run relevant checks, and report the changes and any deployment steps. Native changes require a signed Xcode build.\n\nUpgrade: \(title)\nScope: \(detail)\nEvaluation: \(measure)"
     }
 }
+
+/// One "Build this upgrade" job tracked by the backend (/api/upgrades/*).
+/// A Muse builder worker picks up pending jobs, implements them, and deploys.
+struct UpgradeJob: Decodable, Identifiable {
+    let id: String
+    let idea_id: String
+    let title: String
+    let status: String
+    let commit_sha: String?
+    let previous_sha: String?
+    let error: String?
+    let created_at: String?
+    let updated_at: String?
+
+    var isActive: Bool {
+        ["pending", "building", "undo_requested", "undoing"].contains(status)
+    }
+}
 struct NewsSource: Decodable, Identifiable {
     var id: String { name }
     let name: String
@@ -173,7 +191,9 @@ struct NewsView: View {
     @State private var report: NewsReport?
     @State private var filter = "All"
     @State private var error: String?
-    private var headlines: [NewsHeadline] {
+    @State private var upgradeJob: UpgradeJob?
+    @State private var upgradeError: String?
+    @State private var upgradeBusy = false    private var headlines: [NewsHeadline] {
         report?.items.filter { filter == "All" || $0.category == filter } ?? []
     }
     var body: some View {
@@ -214,7 +234,7 @@ struct NewsView: View {
                                     Divider()
                                     Text("How to evaluate it").font(.caption.weight(.semibold))
                                     Text(idea.measure).font(.caption).foregroundStyle(Color.pulseSecondary)
-                                    Button("Build this upgrade") { onUpgrade(idea) }.buttonStyle(.bordered)
+                                    upgradeControl(for: idea)
                                     if let raw = idea.related_url, let url = URL(string: raw) { Link("Related: " + (idea.related_title ?? "Read source"), destination: url).font(.caption) }
                                 }.frame(maxWidth: .infinity, alignment: .leading).card()
                             }
@@ -228,11 +248,15 @@ struct NewsView: View {
                     } else if error == nil { ProgressView("Fetching headlines…").frame(maxWidth: .infinity).padding(40) }
                 }.padding()
             }.background(Color.pulseBg).navigationTitle("News & ideas")
-                .refreshable { await load() }
+                .refreshable {
+                    await load()
+                    await refreshUpgrade()
+                }
                 .task(id: scenePhase) {
                     guard scenePhase == .active else { return }
                     while !Task.isCancelled {
                         await load()
+                        await refreshUpgrade()
                         do { try await Task.sleep(for: .seconds(60)) } catch { return }
                     }
                 }
@@ -244,6 +268,115 @@ struct NewsView: View {
             let value: NewsReport = try await APIClient.shared.get("/api/news", query: ["refresh":"true"], ttl: 0)
             if !Task.isCancelled { report = value }
         } catch { if !Task.isCancelled { self.error = error.localizedDescription } }
+    }
+
+    // MARK: - Upgrade builder ("Build this upgrade" -> Muse agent -> iPhone)
+
+    private func refreshUpgrade() async {
+        do {
+            let job = try await APIClient.shared.activeUpgrade()
+            if !Task.isCancelled { upgradeJob = job }
+        } catch {
+            // Keep the last known state; the news feed owns the error surface.
+        }
+    }
+
+    private func buildUpgrade(_ idea: ProductIdea) async {
+        guard !upgradeBusy else { return }
+        upgradeBusy = true
+        upgradeError = nil
+        defer { upgradeBusy = false }
+        do {
+            upgradeJob = try await APIClient.shared.requestUpgrade(idea: idea)
+        } catch {
+            upgradeError = (error as? APIError)?.errorDescription ?? error.localizedDescription
+        }
+    }
+
+    private func undoUpgrade(_ job: UpgradeJob) async {
+        guard !upgradeBusy else { return }
+        upgradeBusy = true
+        upgradeError = nil
+        defer { upgradeBusy = false }
+        do {
+            upgradeJob = try await APIClient.shared.requestUpgradeUndo(jobId: job.id)
+        } catch {
+            upgradeError = (error as? APIError)?.errorDescription ?? error.localizedDescription
+        }
+    }
+
+    private func upgradeControl(for idea: ProductIdea) -> some View {
+        Group {
+            if let job = upgradeJob, job.idea_id == idea.id, job.status != "undone" {
+                upgradeStatus(job, idea: idea)
+            } else {
+                VStack(alignment: .leading, spacing: 6) {
+                    Button("Build this upgrade") {
+                        Task { await buildUpgrade(idea) }
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(upgradeBusy)
+                    if jobUndone(for: idea) {
+                        Text("Previous build was undone — the app is back to its earlier state.")
+                            .font(.caption).foregroundStyle(Color.pulseSecondary)
+                    }
+                    if let upgradeError {
+                        Text(upgradeError).font(.caption).foregroundStyle(Color.pulseRed)
+                    }
+                }
+            }
+        }
+    }
+
+    private func jobUndone(for idea: ProductIdea) -> Bool {
+        upgradeJob?.idea_id == idea.id && upgradeJob?.status == "undone"
+    }
+
+    private func upgradeStatus(_ job: UpgradeJob, idea: ProductIdea) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            switch job.status {
+            case "pending":
+                statusRow("Queued — the builder picks it up within a few minutes.")
+            case "building":
+                statusRow("Building — implementing the upgrade, then deploying to your iPhone.")
+            case "deployed":
+                HStack(spacing: 8) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(Color.pulseGreen)
+                    Text("Deployed to your iPhone")
+                        .font(.callout.weight(.semibold))
+                }
+                Button("Undo this upgrade", role: .destructive) {
+                    Task { await undoUpgrade(job) }
+                }
+                .buttonStyle(.bordered)
+                .disabled(upgradeBusy)
+                Text("Reverts the upgrade's changes and reinstalls the previous build.")
+                    .font(.caption).foregroundStyle(Color.pulseSecondary)
+            case "undo_requested", "undoing":
+                statusRow("Undoing — reverting the changes and reinstalling the previous build.")
+            case "failed":
+                Text("Build failed: \(job.error ?? "unknown error")")
+                    .font(.callout).foregroundStyle(Color.pulseRed)
+                Button("Try again") {
+                    Task { await buildUpgrade(idea) }
+                }
+                .buttonStyle(.bordered)
+                .disabled(upgradeBusy)
+            default:
+                EmptyView()
+            }
+            if let upgradeError {
+                Text(upgradeError).font(.caption).foregroundStyle(Color.pulseRed)
+            }
+        }
+    }
+
+    private func statusRow(_ text: String) -> some View {
+        HStack(spacing: 8) {
+            ProgressView().scaleEffect(0.8)
+            Text(text).font(.callout).foregroundStyle(Color.pulseSecondary)
+        }
     }
 }
 

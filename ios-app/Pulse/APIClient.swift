@@ -111,6 +111,31 @@ final class APIClient {
         }
     }
 
+    func post<T: Decodable>(_ path: String, body: [String: Any] = [:]) async throws -> T {
+        let u = try url(for: path)
+        var req = URLRequest(url: u)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try JSONSerialization.data(withJSONObject: body)
+        do {
+            let (data, resp) = try await session.data(for: req)
+            if let payload = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let message = (payload["error"] ?? payload["detail"]) as? String {
+                throw APIError.server(message)
+            }
+            guard let http = resp as? HTTPURLResponse,
+                  (200..<300).contains(http.statusCode)
+            else {
+                throw APIError.http((resp as? HTTPURLResponse)?.statusCode ?? -1)
+            }
+            return try decode(data)
+        } catch let apiErr as APIError {
+            throw apiErr
+        } catch {
+            throw APIError.network(error)
+        }
+    }
+
     // MARK: - Endpoints
 
     func health() async throws -> HealthResponse {
@@ -163,5 +188,27 @@ final class APIClient {
             query: ["range": range.rawValue],
             ttl: ttl
         )
+    }
+
+    // MARK: - Upgrade builder ("Build this upgrade")
+
+    func requestUpgrade(idea: ProductIdea) async throws -> UpgradeJob {
+        try await post("/api/upgrades/request", body: [
+            "idea_id": idea.id,
+            "title": idea.title,
+            "detail": idea.detail,
+            "measure": idea.measure,
+            "effort": idea.effort,
+        ])
+    }
+
+    func activeUpgrade() async throws -> UpgradeJob? {
+        struct Wrapper: Decodable { let job: UpgradeJob? }
+        let w: Wrapper = try await get("/api/upgrades/active", ttl: 0)
+        return w.job
+    }
+
+    func requestUpgradeUndo(jobId: String) async throws -> UpgradeJob {
+        try await post("/api/upgrades/\(jobId)/request-undo")
     }
 }

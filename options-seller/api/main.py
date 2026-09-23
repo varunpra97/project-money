@@ -432,6 +432,112 @@ def breaches_refresh():
     return {"status": "started"}
 
 
+# ── Upgrade builder ("Build this upgrade" in the app's Product lab) ──────────
+
+@app.post("/api/upgrades/request")
+@_api
+def upgrades_request(body: dict):
+    """File an upgrade request from a Product lab idea. Refused (409) while
+    another upgrade is active — upgrades run one at a time."""
+    try:
+        job = upgrades_create({
+            "idea_id": body.get("idea_id", ""),
+            "title": body.get("title", ""),
+            "detail": body.get("detail", ""),
+            "measure": body.get("measure", ""),
+            "effort": body.get("effort", ""),
+        })
+    except ValueError as e:
+        return JSONResponse({"error": str(e)}, status_code=409)
+    return job
+
+
+@app.get("/api/upgrades/active")
+@_api
+def upgrades_active():
+    """Latest upgrade job of any status — what the app polls to render the
+    Build/Undo button state."""
+    job = upgrades_latest()
+    return {"job": job}
+
+
+@app.get("/api/upgrades/pending")
+@_api
+def upgrades_pending():
+    """Pending requests plus undo requests — polled by the builder worker."""
+    return {"pending": upgrades_pending_jobs(),
+            "undo_requested": upgrades_undo_requested()}
+
+
+@app.post("/api/upgrades/{job_id}/claim")
+@_api
+def upgrades_claim(job_id: str):
+    job = upgrades_claim_job(job_id)
+    if job is None:
+        return JSONResponse({"error": "job not found or not pending"},
+                            status_code=404)
+    return job
+
+
+@app.post("/api/upgrades/{job_id}/complete")
+@_api
+def upgrades_complete(job_id: str, body: dict):
+    job = upgrades_complete_job(job_id, str(body.get("commit_sha", "")))
+    if job is None:
+        return JSONResponse({"error": "job not found or not building"},
+                            status_code=404)
+    return job
+
+
+@app.post("/api/upgrades/{job_id}/fail")
+@_api
+def upgrades_fail(job_id: str, body: dict):
+    job = upgrades_fail_job(job_id, str(body.get("error", "unknown error")))
+    if job is None:
+        return JSONResponse({"error": "job not found or already terminal"},
+                            status_code=404)
+    return job
+
+
+@app.post("/api/upgrades/{job_id}/request-undo")
+@_api
+def upgrades_request_undo(job_id: str):
+    job = upgrades_request_undo_job(job_id)
+    if job is None:
+        return JSONResponse({"error": "job not found or not deployed"},
+                            status_code=404)
+    return job
+
+
+@app.post("/api/upgrades/{job_id}/start-undo")
+@_api
+def upgrades_start_undo(job_id: str):
+    job = upgrades_start_undo_job(job_id)
+    if job is None:
+        return JSONResponse({"error": "job not found or undo not requested"},
+                            status_code=404)
+    return job
+
+
+@app.post("/api/upgrades/{job_id}/complete-undo")
+@_api
+def upgrades_complete_undo(job_id: str, body: dict):
+    job = upgrades_complete_undo_job(job_id, str(body.get("revert_sha", "")))
+    if job is None:
+        return JSONResponse({"error": "job not found or undo not started"},
+                            status_code=404)
+    return job
+
+
+@app.get("/api/version")
+@_api
+def version():
+    """Deployed commit — lets the builder worker confirm a Render redeploy
+    landed before marking an upgrade deployed."""
+    return {"git_sha": os.environ.get("RENDER_GIT_COMMIT"),
+            "service": "pulse-backend"}
+
+
 @app.get("/api/portfolio/summary")
 @_api
 def portfolio_summary():
@@ -999,11 +1105,35 @@ try:
     from .collect_scan import collect as collect_scan
     from .thetahedge import collect as thetahedge_collect, load as thetahedge_load
     from .breaches import collect as breaches_collect, load as breaches_load
+    from .upgrades import (
+        create_job as upgrades_create,
+        latest_job as upgrades_latest,
+        pending_jobs as upgrades_pending_jobs,
+        undo_requested_jobs as upgrades_undo_requested,
+        claim as upgrades_claim_job,
+        complete as upgrades_complete_job,
+        fail as upgrades_fail_job,
+        request_undo as upgrades_request_undo_job,
+        start_undo as upgrades_start_undo_job,
+        complete_undo as upgrades_complete_undo_job,
+    )
 except ImportError:
     from data_status import catalog
     from collect_scan import collect as collect_scan
     from thetahedge import collect as thetahedge_collect, load as thetahedge_load
     from breaches import collect as breaches_collect, load as breaches_load
+    from upgrades import (
+        create_job as upgrades_create,
+        latest_job as upgrades_latest,
+        pending_jobs as upgrades_pending_jobs,
+        undo_requested_jobs as upgrades_undo_requested,
+        claim as upgrades_claim_job,
+        complete as upgrades_complete_job,
+        fail as upgrades_fail_job,
+        request_undo as upgrades_request_undo_job,
+        start_undo as upgrades_start_undo_job,
+        complete_undo as upgrades_complete_undo_job,
+    )
 
 
 async def collect_client_data():
