@@ -174,6 +174,7 @@ struct ScannerView: View {
     @State private var sort = ScanSort.wheelRank
     @State private var error: String?
     @State private var loading = true
+    @State private var hasAppeared = false
 
     /// Backend-merged ThetaHedge row first, direct fetch fallback second.
     private func thetaFor(_ r: ScanResult) -> ThetaHedgeRow? {
@@ -222,6 +223,14 @@ struct ScannerView: View {
             guard scenePhase == .active else { return }
             APIClient.shared.invalidateCache()
             await load()
+        }
+        .onAppear {
+            // Refresh every time the tab is opened (scenePhase task covers first appear).
+            if hasAppeared {
+                APIClient.shared.invalidateCache()
+                Task { await load(quiet: true) }
+            }
+            hasAppeared = true
         }
     }
 
@@ -338,14 +347,18 @@ struct ScannerView: View {
         }
     }
 
-    private func load() async {
-        loading = true
-        error = nil
+    private func load(quiet: Bool = false) async {
+        if !quiet {
+            loading = true
+            error = nil
+        }
         do {
             let env: ScanEnvelope = try await APIClient.shared.scan()
             envelope = env
         } catch {
-            self.error = (error as? APIError)?.errorDescription ?? error.localizedDescription
+            if !quiet {
+                self.error = (error as? APIError)?.errorDescription ?? error.localizedDescription
+            }
         }
         do {
             let cands: [Candidate] = try await APIClient.shared.candidates()
@@ -353,7 +366,7 @@ struct ScannerView: View {
             for c in cands { map[c.symbol] = c.strategy }
             strategies = map
         } catch {
-            strategies = [:]
+            if !quiet { strategies = [:] }
         }
         await backfillTheta()
         loading = false
