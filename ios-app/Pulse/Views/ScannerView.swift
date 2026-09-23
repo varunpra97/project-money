@@ -393,16 +393,16 @@ struct ScannerView: View {
                         .heroNumber()
                     Text(pct(b.changePct))
                         .font(.caption)
-                        .foregroundStyle((b.changePct ?? 0) >= 0 ? Color.pulseGain : Color.pulseLoss)
+                        .foregroundStyle((b.changePct ?? 0) >= 0 ? Color.pulseGreen : Color.pulseRed)
                 }
             }
             HStack(spacing: 6) {
                 Text(b.isBullish ? "▲" : "▼")
                     .font(.caption.weight(.bold))
-                    .foregroundStyle(b.isBullish ? Color.pulseGain : Color.pulseLoss)
+                    .foregroundStyle(b.isBullish ? Color.pulseGreen : Color.pulseRed)
                 Text(b.headline)
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(b.isBullish ? Color.pulseGain : Color.pulseLoss)
+                    .foregroundStyle(b.isBullish ? Color.pulseGreen : Color.pulseRed)
                 if let date = b.breachDate {
                     Text(date)
                         .font(.caption)
