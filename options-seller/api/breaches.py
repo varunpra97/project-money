@@ -43,11 +43,24 @@ def universe_cache_path() -> Path:
     return data_dir() / "sp500-universe.json"
 
 
+def _bundled_universe() -> list[dict]:
+    """Last-resort S&P 500 list shipped with the code, used when both the
+    Wikipedia fetch and the disk cache are unavailable (e.g. datacenter IPs
+    blocked by Wikipedia)."""
+    try:
+        data = json.loads(
+            Path(__file__).with_name("sp500_fallback.json").read_text(
+                encoding="utf-8"))
+        return data if isinstance(data, list) else []
+    except Exception:
+        return []
+
+
 def sp500_universe() -> list[dict]:
     """S&P 500 (symbol, name), cached for a week, watchlist-19 excluded.
 
-    Wikipedia is the source of truth; the cached file keeps boots working
-    when the fetch fails.
+    Wikipedia is the source of truth; the disk cache keeps boots working when
+    the fetch fails; a bundled list in the repo is the last resort.
     """
     cache = universe_cache_path()
     if cache.exists():
@@ -60,6 +73,7 @@ def sp500_universe() -> list[dict]:
             pass
     rows: list[dict] = []
     try:
+        import io
         import pandas as pd
         import urllib.request
         req = urllib.request.Request(
@@ -68,7 +82,7 @@ def sp500_universe() -> list[dict]:
         )
         with urllib.request.urlopen(req, timeout=30) as r:
             html = r.read().decode("utf-8", errors="replace")
-        tables = pd.read_html(html)
+        tables = pd.read_html(io.StringIO(html))
         df = tables[0]
         for _, r in df.iterrows():
             sym = str(r["Symbol"]).strip().upper().replace(".", "-")
@@ -76,8 +90,18 @@ def sp500_universe() -> list[dict]:
             if sym and sym != "NAN":
                 rows.append({"symbol": sym, "name": name})
     except Exception:
-        log.warning("S&P 500 fetch failed; using cached/empty universe",
+        log.warning("S&P 500 fetch failed; trying cache/bundled list",
                     exc_info=True)
+    if not rows:
+        # Cache may be stale but better than nothing.
+        try:
+            data = json.loads(cache.read_text(encoding="utf-8"))
+            if isinstance(data, list) and data:
+                rows = data
+        except Exception:
+            pass
+    if not rows:
+        rows = _bundled_universe()
     if rows:
         try:
             cache.parent.mkdir(parents=True, exist_ok=True)
