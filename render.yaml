@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: pulse-backend
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    healthCheckPath: /pulse/api/data/status
+    envVars:
+      - key: PULSE_SCAN_COLLECTOR
+        value: "1"

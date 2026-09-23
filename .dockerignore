@@ -1,0 +1,11 @@
+.git/
+__pycache__/
+*.pyc
+node_modules/
+.venv/
+.venv-pulse/
+mobile-app/node_modules/
+mobile-app/dist/
+ios-app/
+docs/
+.DS_Store
