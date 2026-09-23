@@ -7,10 +7,10 @@ extension Color {
     static let pulseGreen = Color(red: 0.0, green: 200.0 / 255.0, blue: 5.0 / 255.0)
     /// Robinhood red
     static let pulseRed = Color(red: 1.0, green: 80.0 / 255.0, blue: 0.0)
-    static let pulseBg = Color(white: 0.9)
-    static let pulseCard = Color(white: 0.97)
-    static let pulseSecondary = Color(white: 0.35)
-    static let pulseTertiary = Color(white: 0.55)
+    static let pulseBg = Color(white: 0.28)
+    static let pulseCard = Color(white: 0.36)
+    static let pulseSecondary = Color(white: 0.65)
+    static let pulseTertiary = Color(white: 0.45)
 }
 
 // MARK: - Card container
