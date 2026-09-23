@@ -518,6 +518,7 @@ struct ScannerDetailView: View {
     @State private var chainSpot: Double?
     @State private var chainExpiries: [ChainExpiry] = []
     @State private var chainLoading = true
+    @State private var chainError: String?
 
     /// Put credit spread for bullish/neutral bias, call credit spread for bearish.
     private var spreadIsPut: Bool {
@@ -558,8 +559,10 @@ struct ScannerDetailView: View {
             let (spot, expiries) = try await fetchOptionsChain(symbol: result.symbol)
             chainSpot = spot
             chainExpiries = expiries
+            chainError = nil
         } catch {
             chainExpiries = []
+            chainError = (error as? APIError)?.errorDescription ?? error.localizedDescription
         }
         chainLoading = false
     }
@@ -750,9 +753,15 @@ struct ScannerDetailView: View {
                     Text("No option quotes available for \(result.symbol).")
                         .font(.callout)
                         .foregroundStyle(Color.pulseSecondary)
-                    Text("The scanner's options collector hasn't populated legs yet, and the live chain lookup failed.")
-                        .font(.caption)
-                        .foregroundStyle(Color.pulseTertiary)
+                    if let chainError {
+                        Text("Live chain: \(chainError)")
+                            .font(.caption)
+                            .foregroundStyle(Color.pulseRed)
+                    } else {
+                        Text("The scanner's options collector hasn't populated legs yet, and the live chain lookup failed.")
+                            .font(.caption)
+                            .foregroundStyle(Color.pulseTertiary)
+                    }
                 }
                 .card()
             }

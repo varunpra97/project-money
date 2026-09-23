@@ -234,6 +234,7 @@ struct HomeView: View {
             .foregroundStyle(Color.pulseSecondary)
 
             if expandedId == pos.id {
+                creditRiskSection(pos)
                 Divider().background(Color.white.opacity(0.08))
                 LazyVGrid(
                     columns: [GridItem(.flexible(), alignment: .leading),
@@ -265,6 +266,62 @@ struct HomeView: View {
             Text(value)
                 .font(.subheadline.weight(.medium))
         }
+    }
+
+    /// Credit collected vs max risk for an expanded position.
+    private func creditRiskSection(_ pos: Position) -> some View {
+        let isDebit = pos.premiumDirection == "debit"
+        let creditLabel = isDebit ? "Debit paid" : "Credit collected"
+        let creditAmt = abs(pos.credit ?? 0)
+        let risk = pos.riskAmount
+        return VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(creditLabel)
+                        .font(.caption)
+                        .foregroundStyle(Color.pulseSecondary)
+                    Text(money(creditAmt))
+                        .font(.headline)
+                        .foregroundStyle(isDebit ? Color.primary : Color.pulseGreen)
+                }
+                Spacer()
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text("Max risk")
+                        .font(.caption)
+                        .foregroundStyle(Color.pulseSecondary)
+                    Text(risk.map { money($0) } ?? "—")
+                        .font(.headline)
+                        .foregroundStyle(risk == nil ? Color.pulseSecondary : Color.pulseRed)
+                }
+            }
+            if let risk, risk > 0 {
+                let total = creditAmt + risk
+                GeometryReader { geo in
+                    HStack(spacing: 0) {
+                        Rectangle()
+                            .fill(isDebit ? Color.orange : Color.pulseGreen)
+                            .frame(width: geo.size.width * CGFloat(creditAmt / total))
+                        Rectangle()
+                            .fill(Color.pulseRed.opacity(0.75))
+                            .frame(width: geo.size.width * CGFloat(risk / total))
+                    }
+                    .clipShape(RoundedRectangle(cornerRadius: 4))
+                }
+                .frame(height: 8)
+                if !isDebit, creditAmt > 0 {
+                    Text("Risk/reward 1 : \(String(format: "%.1f", risk / creditAmt))")
+                        .font(.caption2)
+                        .foregroundStyle(Color.pulseSecondary)
+                }
+            } else {
+                Text("Max risk is not defined for this position (unlimited or not recorded).")
+                    .font(.caption2)
+                    .foregroundStyle(Color.pulseSecondary)
+            }
+        }
+        .padding(12)
+        .background(Color.white.opacity(0.04))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 
     // MARK: - Loading

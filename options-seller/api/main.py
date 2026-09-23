@@ -452,6 +452,8 @@ def portfolio_positions():
                     ),
                     "days_held": _num(days_held(p.get("opened_at"), p.get("closed_at"))),
                     "risk_label": _risk_label(p),
+                    "max_loss": _num(p.get("max_loss")),
+                    "max_profit": _num(p.get("max_profit")),
                 }
             )
         return {"positions": rows, "as_of": _now_iso()}
@@ -713,6 +715,86 @@ async def quote(symbol: str, range: str = Query("1d"), refresh: bool = False):
         }
 
     return await quote_cache.get(f"quote:{sym}:{rng}", _build, ttl=ttl, force=refresh)
+
+
+@app.get("/api/options/{symbol}")
+@_api
+def options_chain(symbol: str, dte: int = Query(14, ge=1, le=90)):
+    """Options chain for the 3 expirations nearest `dte` (default ~14 DTE).
+
+    The iOS app used to hit Yahoo's options API directly, but Yahoo now
+    requires crumb auth (401 without it); yfinance handles that server-side.
+    Strikes trimmed to ±30% of spot to keep the payload small. Cached 120s.
+    """
+    sym = symbol.strip().upper()
+    if not re.fullmatch(r"[A-Z0-9^][A-Z0-9.^=-]{0,19}", sym):
+        raise ValueError("Invalid ticker symbol")
+
+    def _build():
+        import yfinance as yf
+        from datetime import date
+
+        t = yf.Ticker(sym)
+        try:
+            expirations = t.options or []
+        except Exception as exc:
+            return {"error": f"options_unavailable: {exc}", "symbol": sym}
+        if not expirations:
+            return {"error": "options_unavailable: no expirations", "symbol": sym}
+        today = date.today()
+
+        def _dte(dstr: str) -> int:
+            try:
+                return (date.fromisoformat(dstr) - today).days
+            except ValueError:
+                return 10 ** 6
+
+        exps = sorted(expirations, key=lambda d: abs(_dte(d) - dte))[:3]
+        try:
+            spot = float(t.fast_info.get("lastPrice") or 0) or None
+        except Exception:
+            spot = None
+        out = []
+        for dstr in exps:
+            try:
+                chain = t.option_chain(dstr)
+            except Exception:
+                continue
+
+            def _slim(df):
+                rows = []
+                for _, r in df.iterrows():
+                    try:
+                        strike = float(r["strike"])
+                    except (KeyError, TypeError, ValueError):
+                        continue
+                    if spot and (strike < spot * 0.7 or strike > spot * 1.3):
+                        continue
+
+                    def _f(k):
+                        try:
+                            v = float(r[k])
+                            return v if math.isfinite(v) else None
+                        except (KeyError, TypeError, ValueError):
+                            return None
+
+                    rows.append({
+                        "strike": strike,
+                        "bid": _f("bid"), "ask": _f("ask"), "last": _f("lastPrice"),
+                        "iv": _f("impliedVolatility"),
+                        "vol": _f("volume"), "oi": _f("openInterest"),
+                    })
+                rows.sort(key=lambda r: r["strike"])
+                return rows
+
+            out.append({"date": dstr, "dte": _dte(dstr),
+                        "calls": _slim(chain.calls), "puts": _slim(chain.puts)})
+        if not out:
+            return {"error": "options_unavailable: chain fetch failed", "symbol": sym}
+        return {"symbol": sym, "as_of": _now_iso(), "source": "Yahoo Finance",
+                "underlying_price": spot, "expirations": out}
+
+    return cached(120, f"options:{sym}:{dte}", _build)
 
 
 _STATS_POOL = ThreadPoolExecutor(max_workers=4)

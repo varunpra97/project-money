@@ -44,12 +44,16 @@ func fetchThetaHedgeRow(symbol: String) async throws -> ThetaHedgeRow? {
     return nil
 }
 
-// MARK: - Yahoo Finance options chain (free, no key)
+// MARK: - Options chain via the Pulse backend proxy
 //
-// GET https://query1.finance.yahoo.com/v7/finance/options/{SYMBOL}
-// ?date={expiration unix} — omit for the front expiration; expirationDates
-// lists all available expiries.
+// GET {baseURL}/api/options/{SYMBOL}?dte=14
+//
+// The app used to hit Yahoo's options API directly, but Yahoo now requires
+// crumb auth (401 without it). The backend proxies via yfinance and returns
+// the 3 expirations nearest the requested DTE, strikes trimmed to ±30% of
+// spot. Cached server-side for 120s.
 
+// Contract shape shared by the UI; the backend proxy's fields are mapped into it.
 struct YahooOptionContract: Decodable {
     let strike: Double
     let lastPrice: Double?
@@ -65,33 +69,40 @@ struct YahooOptionContract: Decodable {
     }
 }
 
-struct YahooExpirationSet: Decodable {
-    let expirationDate: Int
-    let calls: [YahooOptionContract]
-    let puts: [YahooOptionContract]
-}
+struct BackendOptionContract: Decodable {
+    let strike: Double
+    let bid: Double?
+    let ask: Double?
+    let last: Double?
+    let iv: Double?
+    let vol: Double?
+    let oi: Double?
 
-struct YahooChainQuote: Decodable {
-    let regularMarketPrice: Double?
-}
-
-struct YahooChainResult: Decodable {
-    let underlyingSymbol: String?
-    let expirationDates: [Int]?
-    let quote: YahooChainQuote?
-    let options: [YahooExpirationSet]
-}
-
-struct YahooChainResponse: Decodable {
-    struct Chain: Decodable {
-        struct ChainError: Decodable {
-            let code: String?
-            let description: String?
-        }
-        let result: [YahooChainResult]?
-        let error: ChainError?
+    var asYahoo: YahooOptionContract {
+        YahooOptionContract(strike: strike, lastPrice: last, bid: bid, ask: ask,
+                            volume: vol.map { Int($0) },
+                            openInterest: oi.map { Int($0) },
+                            impliedVolatility: iv)
     }
-    let optionChain: Chain
+}
+
+struct BackendExpiry: Decodable {
+    let date: String   // "YYYY-MM-DD"
+    let dte: Int
+    let calls: [BackendOptionContract]
+    let puts: [BackendOptionContract]
+}
+
+struct BackendOptionsResponse: Decodable {
+    let symbol: String?
+    let underlyingPrice: Double?
+    let expirations: [BackendExpiry]?
+    let error: String?
+
+    enum CodingKeys: String, CodingKey {
+        case symbol, expirations, error
+        case underlyingPrice = "underlying_price"
+    }
 }
 
 struct ChainExpiry {
@@ -101,69 +112,44 @@ struct ChainExpiry {
     let puts: [YahooOptionContract]
 }
 
-func fetchOptionsChain(symbol: String) async throws -> (spot: Double?, expiries: [ChainExpiry]) {
+private let backendISODate: DateFormatter = {
+    let f = DateFormatter()
+    f.dateFormat = "yyyy-MM-dd"
+    f.timeZone = TimeZone(secondsFromGMT: 0)
+    return f
+}()
+
+func fetchOptionsChain(symbol: String, dte: Int = 14) async throws -> (spot: Double?, expiries: [ChainExpiry]) {
     let sym = symbol.uppercased().addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? symbol.uppercased()
-    guard let url = URL(string: "https://query1.finance.yahoo.com/v7/finance/options/\(sym)") else {
-        throw APIError.badURL("options/\(sym)")
+    guard let url = URL(string: "\(AppConfig.baseURL)/api/options/\(sym)?dte=\(dte)") else {
+        throw APIError.badURL("api/options/\(sym)")
     }
     var req = URLRequest(url: url)
-    // Yahoo blocks default URLSession user agents; a browser UA works without a crumb.
-    req.setValue("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1", forHTTPHeaderField: "User-Agent")
     req.setValue("application/json", forHTTPHeaderField: "Accept")
-    req.timeoutInterval = 25
+    req.timeoutInterval = 30
     let (data, resp) = try await URLSession.shared.data(for: req)
     guard (resp as? HTTPURLResponse)?.statusCode == 200 else {
         throw APIError.http((resp as? HTTPURLResponse)?.statusCode ?? -1)
     }
-    let decoded = try JSONDecoder().decode(YahooChainResponse.self, from: data)
-    if let err = decoded.optionChain.error, err.code != nil {
-        throw APIError.server(err.description ?? "Yahoo options unavailable")
+    let decoded = try JSONDecoder().decode(BackendOptionsResponse.self, from: data)
+    if let err = decoded.error {
+        throw APIError.server(err)
     }
-    guard let result = decoded.optionChain.result?.first else {
+    guard let exps = decoded.expirations, !exps.isEmpty else {
         throw APIError.server("No options data for \(sym)")
     }
     let now = Date().timeIntervalSince1970
-    var out: [ChainExpiry] = []
-    var seenDates = Set<Int>()
-    // The front page returns only the nearest expiry; pull the rest we need.
-    let wantedDates = (result.expirationDates ?? []).filter { Double($0) > now + 5 * 86400 }
-    for set in result.options where !seenDates.contains(set.expirationDate) {
-        seenDates.insert(set.expirationDate)
-        out.append(ChainExpiry(date: TimeInterval(set.expirationDate),
-                              dte: max(0, Int((Double(set.expirationDate) - now) / 86400)),
-                              calls: set.calls, puts: set.puts))
+    let out: [ChainExpiry] = exps.compactMap { e in
+        guard let dt = backendISODate.date(from: e.date) else { return nil }
+        let ts = dt.timeIntervalSince1970
+        let computed = max(0, Int((ts - now) / 86400))
+        return ChainExpiry(date: ts, dte: e.dte >= 0 ? e.dte : computed,
+                           calls: e.calls.map(\.asYahoo), puts: e.puts.map(\.asYahoo))
     }
-    for ts in wantedDates where !seenDates.contains(ts) {
-        seenDates.insert(ts)
-        if let extra = try? await fetchExpiry(symbol: sym, date: ts) {
-            out.append(extra)
-        }
-        if out.count >= 6 { break } // enough to find the ~14 DTE one
+    guard !out.isEmpty else {
+        throw APIError.server("No options data for \(sym)")
     }
-    out.sort { $0.dte < $1.dte }
-    return (result.quote?.regularMarketPrice, out)
-}
-
-private func fetchExpiry(symbol: String, date: Int) async throws -> ChainExpiry {
-    guard let url = URL(string: "https://query1.finance.yahoo.com/v7/finance/options/\(symbol)?date=\(date)") else {
-        throw APIError.badURL("options/\(symbol)")
-    }
-    var req = URLRequest(url: url)
-    req.setValue("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1", forHTTPHeaderField: "User-Agent")
-    req.setValue("application/json", forHTTPHeaderField: "Accept")
-    req.timeoutInterval = 20
-    let (data, resp) = try await URLSession.shared.data(for: req)
-    guard (resp as? HTTPURLResponse)?.statusCode == 200 else {
-        throw APIError.http((resp as? HTTPURLResponse)?.statusCode ?? -1)
-    }
-    let decoded = try JSONDecoder().decode(YahooChainResponse.self, from: data)
-    guard let set = decoded.optionChain.result?.first?.options.first else {
-        throw APIError.server("No contracts for expiry")
-    }
-    let now = Date().timeIntervalSince1970
-    return ChainExpiry(date: TimeInterval(set.expirationDate),
-                       dte: max(0, Int((Double(set.expirationDate) - now) / 86400)),
-                       calls: set.calls, puts: set.puts)
+    return (decoded.underlyingPrice, out.sorted { $0.dte < $1.dte })
 }
 
 // MARK: - Greeks (Black-Scholes, from contract IV)

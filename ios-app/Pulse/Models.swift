@@ -72,6 +72,8 @@ struct Position: Decodable, Identifiable {    let id: String
     let closeValue: Double?
     let premiumDirection: String?
     let markAsOf: String?
+    let maxLoss: Double?
+    let maxProfit: Double?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -93,6 +95,8 @@ struct Position: Decodable, Identifiable {    let id: String
         case closeValue = "close_value"
         case premiumDirection = "premium_direction"
         case markAsOf = "mark_as_of"
+        case maxLoss = "max_loss"
+        case maxProfit = "max_profit"
     }
 }
 
@@ -112,6 +116,31 @@ struct ActivityItem: Decodable, Identifiable {    let id = UUID()
 
 struct PositionsResponse: Decodable {
     let positions: [Position]
+}
+
+extension Position {
+    /// Max risk in dollars. Prefers the backend's stored value; falls back to
+    /// computing from legs (spreads and cash-secured puts) when absent.
+    var riskAmount: Double? {
+        if let ml = maxLoss { return ml }
+        guard let legs, !legs.isEmpty else { return nil }
+        let contracts = abs(qty ?? 1)
+        let creditAmt = abs(credit ?? 0)
+        let isDebit = premiumDirection == "debit"
+        if legs.count == 2,
+           let s1 = legs[0].strike, let s2 = legs[1].strike {
+            let width = abs(s1 - s2) * 100 * contracts
+            return isDebit ? creditAmt : max(0, width - creditAmt)
+        }
+        if legs.count == 1, let leg = legs.first, leg.side == "sell",
+           let strike = leg.strike {
+            if leg.optionType == "put" {
+                return max(0, strike * 100 * contracts - creditAmt)
+            }
+            return nil // naked call: undefined
+        }
+        return nil
+    }
 }
 
 struct ActivityResponse: Decodable {
