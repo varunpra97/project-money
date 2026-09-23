@@ -18,6 +18,7 @@ struct DiscoverView: View {
                             Task { await load() }
                         }
                     }
+                    scannerButton
                     celebritySection
                     earningsSection
                     volatilitySection
@@ -41,6 +42,31 @@ struct DiscoverView: View {
                 await load()
             }
         }
+    }
+
+    // MARK: - Scanner output button
+
+    private var scannerButton: some View {
+        NavigationLink(destination: ScannerView()) {
+            HStack(spacing: 10) {
+                Image(systemName: "radar")
+                    .font(.title3)
+                    .foregroundStyle(Color.pulseGreen)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Scanner output")
+                        .font(.headline)
+                    Text("Options pricing, Greeks, and credit-spread strikes")
+                        .font(.caption)
+                        .foregroundStyle(Color.pulseSecondary)
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.caption)
+                    .foregroundStyle(Color.pulseTertiary)
+            }
+        }
+        .buttonStyle(.plain)
+        .card()
     }
 
     // MARK: - Celebrity moves

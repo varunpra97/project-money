@@ -148,6 +148,10 @@ final class APIClient {
         return r.candidates
     }
 
+    func scan() async throws -> ScanEnvelope {
+        try await get("/api/scan", ttl: 300)
+    }
+
     func quote(_ symbol: String, range: QuoteRange) async throws -> QuoteResponse {
         let ttl: TimeInterval = range == .oneDay ? 60 : 900
         return try await get(

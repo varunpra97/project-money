@@ -32,7 +32,6 @@ struct ContentView: View {
                     HStack {
                         Text("Pulse").font(.headline)
                         Spacer()
-                        Button { assistantOpen.toggle() } label: { Label("Assistant", systemImage: "sparkle") }
                     }.padding(.horizontal).padding(.vertical, 8).background(Color.pulseBg)
                 }
                 if assistantOpen && geometry.size.width >= 850 {
