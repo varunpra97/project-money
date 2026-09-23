@@ -33,6 +33,24 @@ RUN chmod +x /app/docker-entrypoint.sh
 RUN mkdir -p /data
 VOLUME /data
 
+# Bake fresh data snapshots into the image (NOT /data — the volume hides
+# anything baked there). Render's free tier sleeps the container and /data
+# is ephemeral, so without these the API serves scan_unavailable /
+# thetahedge_unavailable for minutes after every cold boot while the
+# background collectors run. The entrypoint copies these into /data when
+# missing; the workers overwrite them with fresh data within minutes.
+# Best-effort: a failed seed must never fail the build.
+RUN mkdir -p /app/seed && \
+    (cd /app/options-seller && \
+     PYTHONPATH=/app/options-seller/src SCANNER_JSON_PATH=/app/seed/scan-latest.json \
+     timeout 600 python -c "from api.collect_scan import collect; collect(); print('scan seed ok')" \
+     || echo "scan seed skipped") && \
+    (cd /app/options-seller && \
+     PYTHONPATH=/app/options-seller/src PULSE_DATA_DIR=/app/seed \
+     timeout 900 python -c "from api.thetahedge import collect; e=collect(); print('theta seed ok', e['total'])" \
+     || echo "theta seed skipped") && \
+    ls -la /app/seed/ || true
+
 EXPOSE 8504
 
 ENTRYPOINT ["/app/docker-entrypoint.sh"]
