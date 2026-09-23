@@ -724,13 +724,82 @@ def options_chain(symbol: str, dte: int = Query(14, ge=1, le=90)):
 
     The iOS app used to hit Yahoo's options API directly, but Yahoo now
     requires crumb auth (401 without it); yfinance handles that server-side.
-    Strikes trimmed to ±30% of spot to keep the payload small. Cached 120s.
+    Yahoo's v7 options API also blocks some datacenter IPs, so when yfinance
+    comes back empty we fall back to CBOE's public 15-min delayed quotes
+    (cdn.cboe.com, no auth). Strikes trimmed to ±30% of spot to keep the
+    payload small. Cached 120s.
     """
     sym = symbol.strip().upper()
     if not re.fullmatch(r"[A-Z0-9^][A-Z0-9.^=-]{0,19}", sym):
         raise ValueError("Invalid ticker symbol")
 
-    def _build():
+    def _cboe_chain():
+        """CBOE delayed quotes fallback. Returns None when unavailable."""
+        import json as _json
+        import urllib.request
+        from datetime import date as _date
+
+        url = f"https://cdn.cboe.com/api/global/delayed_quotes/options/{sym}.json"
+        req = urllib.request.Request(url, headers={"User-Agent": "Pulse/1.0"})
+        try:
+            with urllib.request.urlopen(req, timeout=25) as resp:
+                if resp.status != 200:
+                    return None
+                payload = _json.load(resp)
+        except Exception:
+            return None
+        data = (payload or {}).get("data") or {}
+        raw = data.get("options") or []
+        try:
+            spot = float(data.get("current_price"))
+        except (TypeError, ValueError):
+            spot = None
+        today = _date.today()
+        by_exp: dict = {}
+        for r in raw:
+            m = re.match(r"^(.+?)(\d{6})([CP])(\d{8})$", str(r.get("option") or ""))
+            if not m:
+                continue
+            try:
+                exp = _date(2000 + int(m.group(2)[:2]),
+                            int(m.group(2)[2:4]), int(m.group(2)[4:6]))
+            except ValueError:
+                continue
+            strike = int(m.group(4)) / 1000.0
+            if spot and (strike < spot * 0.7 or strike > spot * 1.3):
+                continue
+
+            def _f(k):
+                try:
+                    v = float(r.get(k))
+                    return v if math.isfinite(v) else None
+                except (TypeError, ValueError):
+                    return None
+
+            contract = {"strike": strike, "bid": _f("bid"), "ask": _f("ask"),
+                        "last": _f("last_trade_price"), "iv": _f("iv"),
+                        "vol": _f("volume"), "oi": _f("open_interest")}
+            grp = by_exp.setdefault(exp, {"calls": [], "puts": []})
+            grp["calls" if m.group(3) == "C" else "puts"].append(contract)
+        if not by_exp:
+            return None
+
+        def _dte(d):
+            return (d - today).days
+
+        picked = sorted(by_exp, key=lambda d: abs(_dte(d) - dte))[:3]
+        out = []
+        for exp in sorted(picked):
+            grp = by_exp[exp]
+            grp["calls"].sort(key=lambda c: c["strike"])
+            grp["puts"].sort(key=lambda c: c["strike"])
+            out.append({"date": exp.isoformat(), "dte": _dte(exp),
+                        "calls": grp["calls"], "puts": grp["puts"]})
+        return {"symbol": sym, "as_of": _now_iso(),
+                "source": "CBOE (15-min delayed)",
+                "underlying_price": spot, "expirations": out}
+
+    def _yfinance_chain():
         import yfinance as yf
         from datetime import date
 
@@ -793,6 +862,13 @@ def options_chain(symbol: str, dte: int = Query(14, ge=1, le=90)):
             return {"error": "options_unavailable: chain fetch failed", "symbol": sym}
         return {"symbol": sym, "as_of": _now_iso(), "source": "Yahoo Finance",
                 "underlying_price": spot, "expirations": out}
+
+    def _build():
+        res = _yfinance_chain()
+        if res.get("expirations"):
+            return res
+        cboe = _cboe_chain()
+        return cboe if cboe else res
 
     return cached(120, f"options:{sym}:{dte}", _build)
 
