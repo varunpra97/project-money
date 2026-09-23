@@ -73,11 +73,9 @@ struct ScanOptionsBlock: Decodable {
         impliedMovePct = try c.decodeIfPresent(Double.self, forKey: .impliedMovePct)
         var legs: [ScanSuggestedLeg] = []
         var strategyName: String? = nil
-        if let arrOpt = try? c.decodeIfPresent([ScanSuggestedLeg].self, forKey: .suggested),
-           let arr = arrOpt {
+        if let arr = try? c.decodeIfPresent([ScanSuggestedLeg].self, forKey: .suggested) {
             legs = arr
-        } else if let objOpt = try? c.decodeIfPresent(LegsObject.self, forKey: .suggested),
-                  let obj = objOpt {
+        } else if let obj = try? c.decodeIfPresent(LegsObject.self, forKey: .suggested) {
             legs = obj.legs ?? []
             strategyName = obj.strategy ?? obj.name
         }
@@ -233,7 +231,7 @@ struct ScannerView: View {
     private var scanSubtitle: String? {
         var bits: [String] = []
         if let asOf = envelope?.asOf { bits.append("as of \(asOf)") }
-        let ranked = (envelope?.results ?? []).filter { thetaFor($0).wheelRank != nil }.count
+        let ranked = (envelope?.results ?? []).filter { thetaFor($0)?.wheelRank != nil }.count
         bits.append(ranked > 0 ? "volatility ranked \(ranked)" : "volatility pending")
         if let n = envelope?.results.count { bits.append("\(n) tickers") }
         return bits.isEmpty ? nil : bits.joined(separator: " · ")
