@@ -381,6 +381,57 @@ def thetahedge_refresh():
     return {"status": "started"}
 
 
+@app.get("/api/breaches")
+@_api
+def breaches_latest():
+    """S&P 500 stocks (watchlist-19 excluded) that breached a technical level
+    in the past few trading days — 50-day SMA crosses and 20-day high/low
+    breaks, each with direction. Refreshed daily by the breaches worker;
+    served from the saved file here.
+    """
+
+    def _build():
+        data = breaches_load()
+        if not data:
+            return {"as_of": None, "total": 0, "results": [],
+                    "error": "breaches_unavailable"}
+        return {"as_of": data.get("asOf"), "total": data.get("total", 0),
+                "window_days": data.get("window_days"),
+                "results": data.get("results", [])}
+
+    return cached(3600, "breaches:latest", _build)
+
+
+_breaches_refresh_lock = threading.Lock()
+_breaches_refresh_last: float = 0.0
+
+
+@app.post("/api/breaches/refresh")
+@_api
+def breaches_refresh():
+    """Kick off a breach-scan recollect in the background (admin/ops use).
+
+    Guarded by a lock and a 15-minute cooldown. Returns immediately;
+    poll /api/breaches for results.
+    """
+    global _breaches_refresh_last
+    with _breaches_refresh_lock:
+        now = time.time()
+        if now - _breaches_refresh_last < 900:
+            return {"status": "cooldown",
+                    "retry_in_seconds": int(900 - (now - _breaches_refresh_last))}
+        _breaches_refresh_last = now
+
+    def _run():
+        try:
+            breaches_collect()
+        except Exception:
+            logging.exception("Breaches manual refresh failed")
+
+    threading.Thread(target=_run, daemon=True).start()
+    return {"status": "started"}
+
+
 @app.get("/api/portfolio/summary")
 @_api
 def portfolio_summary():
@@ -947,10 +998,12 @@ try:
     from .data_status import catalog
     from .collect_scan import collect as collect_scan
     from .thetahedge import collect as thetahedge_collect, load as thetahedge_load
+    from .breaches import collect as breaches_collect, load as breaches_load
 except ImportError:
     from data_status import catalog
     from collect_scan import collect as collect_scan
     from thetahedge import collect as thetahedge_collect, load as thetahedge_load
+    from breaches import collect as breaches_collect, load as breaches_load
 
 
 async def collect_client_data():
@@ -987,8 +1040,21 @@ async def collect_client_data():
             except Exception:
                 logging.exception("ThetaHedge daily collect failed")
             await asyncio.sleep(86400 if first_ok else 3600)
+    async def breaches_daily():
+        # Breach scan refreshes once a day — "past few days" doesn't need
+        # intraday. Retry hourly until the first successful pull so a
+        # boot-time Yahoo hiccup heals on its own.
+        first_ok = False
+        while True:
+            try:
+                await asyncio.to_thread(breaches_collect)
+                first_ok = True
+            except Exception:
+                logging.exception("Breaches daily collect failed")
+            await asyncio.sleep(86400 if first_ok else 3600)
     workers = [asyncio.create_task(metadata()), asyncio.create_task(scanner()),
-               asyncio.create_task(thetahedge_daily())]
+               asyncio.create_task(thetahedge_daily()),
+               asyncio.create_task(breaches_daily())]
     try:
         await asyncio.gather(*workers)
     finally:

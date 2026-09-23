@@ -49,6 +49,10 @@ RUN mkdir -p /app/seed && \
      PYTHONPATH=/app/options-seller/src PULSE_DATA_DIR=/app/seed \
      timeout 900 python -c "from api.thetahedge import collect; e=collect(); print('theta seed ok', e['total'])" \
      || echo "theta seed skipped") && \
+    (cd /app/options-seller && \
+     PYTHONPATH=/app/options-seller/src PULSE_DATA_DIR=/app/seed \
+     timeout 1200 python -c "from api.breaches import collect; e=collect(); print('breaches seed ok', e['total'])" \
+     || echo "breaches seed skipped") && \
     ls -la /app/seed/ || true
 
 EXPOSE 8504

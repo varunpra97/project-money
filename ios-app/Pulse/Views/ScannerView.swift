@@ -113,6 +113,66 @@ struct ScanEnvelope: Decodable {
     let results: [ScanResult]
 }
 
+// MARK: - Level breaches (/api/breaches)
+
+/// One detected breach of a technical level (S&P 500, watchlist excluded).
+struct BreachResult: Decodable, Identifiable {
+    var id: String { symbol + "|" + breachType }
+    let symbol: String
+    let name: String?
+    let price: Double?
+    let changePct: Double?
+    /// "sma50_cross" | "range_break"
+    let breachType: String
+    /// "bullish" | "bearish"
+    let direction: String
+    let breachDate: String?
+    let level: Double?
+    let levelLabel: String?
+    let distancePct: Double?
+
+    enum CodingKeys: String, CodingKey {
+        case symbol, name, price, changePct, direction, level
+        case breachType = "breach_type"
+        case breachDate = "breach_date"
+        case levelLabel = "level_label"
+        case distancePct = "distance_pct"
+    }
+
+    var isBullish: Bool { direction.lowercased() == "bullish" }
+
+    /// "Broke above 50-day SMA" / "Broke below 20-day low" …
+    var headline: String {
+        let verb = isBullish ? "Broke above" : "Broke below"
+        switch breachType {
+        case "sma50_cross": return "\(verb) 50-day SMA"
+        case "range_break":
+            return isBullish ? "Broke 20-day high" : "Broke 20-day low"
+        default: return "\(verb) level"
+        }
+    }
+
+    /// Minimal ScanResult so a breach row can open the standard detail view
+    /// (live chain + spread card load from the backend once opened).
+    var asScanResult: ScanResult {
+        ScanResult(symbol: symbol, name: name, price: price, changePct: changePct,
+                   marketCap: nil, fiftyTwoWeekHigh: nil, fiftyTwoWeekLow: nil,
+                   trend: nil, liquidity: nil, earnings: nil, options: nil, theta: nil)
+    }
+}
+
+struct BreachesResponse: Decodable {
+    let asOf: String?
+    let total: Int?
+    let windowDays: Int?
+    let results: [BreachResult]
+
+    enum CodingKeys: String, CodingKey {
+        case asOf, total, results
+        case windowDays = "window_days"
+    }
+}
+
 // MARK: - ThetaHedge volatility rankings (/api/thetahedge)
 
 struct ThetaHedgeRow: Decodable {
@@ -166,12 +226,22 @@ enum ScanSort: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
+enum ScannerMode: String, CaseIterable, Identifiable {
+    case watchlist = "Watchlist"
+    case breaches = "Breaches"
+
+    var id: String { rawValue }
+}
+
 struct ScannerView: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var envelope: ScanEnvelope?
     @State private var directTheta: [String: ThetaHedgeRow] = [:]
     @State private var strategies: [String: String] = [:]
     @State private var sort = ScanSort.wheelRank
+    @State private var mode = ScannerMode.watchlist
+    @State private var breaches: BreachesResponse?
+    @State private var breachesError: String?
     @State private var error: String?
     @State private var loading = true
     @State private var hasAppeared = false
@@ -193,16 +263,21 @@ struct ScannerView: View {
                 if loading && envelope == nil {
                     placeholderRows
                 } else {
-                    sortPicker
-                    ForEach(sortedResults()) { r in
-                        NavigationLink(destination: ScannerDetailView(
-                            result: r,
-                            theta: thetaFor(r),
-                            strategy: strategies[r.symbol]
-                        )) {
-                            scanRow(r)
+                    modePicker
+                    if mode == .watchlist {
+                        sortPicker
+                        ForEach(sortedResults()) { r in
+                            NavigationLink(destination: ScannerDetailView(
+                                result: r,
+                                theta: thetaFor(r),
+                                strategy: strategies[r.symbol]
+                            )) {
+                                scanRow(r)
+                            }
+                            .buttonStyle(.plain)
                         }
-                        .buttonStyle(.plain)
+                    } else {
+                        breachesList
                     }
                 }
                 Text("Scanner output is context for paper trading — not trade signals.")
@@ -239,6 +314,13 @@ struct ScannerView: View {
     }
 
     private var scanSubtitle: String? {
+        if mode == .breaches {
+            var bits: [String] = []
+            if let asOf = breaches?.asOf { bits.append("as of \(asOf)") }
+            if let n = breaches?.total { bits.append("\(n) breaches") }
+            if let w = breaches?.windowDays { bits.append("last \(w) trading days") }
+            return bits.isEmpty ? nil : bits.joined(separator: " · ")
+        }
         var bits: [String] = []
         if let asOf = envelope?.asOf { bits.append("as of \(asOf)") }
         let ranked = (envelope?.results ?? []).filter { thetaFor($0)?.wheelRank != nil }.count
@@ -247,11 +329,94 @@ struct ScannerView: View {
         return bits.isEmpty ? nil : bits.joined(separator: " · ")
     }
 
+    private var modePicker: some View {
+        Picker("Mode", selection: $mode) {
+            ForEach(ScannerMode.allCases) { m in Text(m.rawValue).tag(m) }
+        }
+        .pickerStyle(.segmented)
+    }
+
     private var sortPicker: some View {
         Picker("Sort", selection: $sort) {
             ForEach(ScanSort.allCases) { s in Text(s.rawValue).tag(s) }
         }
         .pickerStyle(.segmented)
+    }
+
+    // MARK: - Breaches list
+
+    private var breachesList: some View {
+        Group {
+            if let breaches {
+                if breaches.results.isEmpty {
+                    Text(breachesError ?? "No level breaches in the last \(breaches.windowDays ?? 5) trading days.")
+                        .font(.subheadline)
+                        .foregroundStyle(Color.pulseSecondary)
+                        .padding(.vertical, 12)
+                } else {
+                    ForEach(breaches.results) { b in
+                        NavigationLink(destination: ScannerDetailView(
+                            result: b.asScanResult,
+                            theta: nil,
+                            strategy: nil
+                        )) {
+                            breachRow(b)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            } else if let breachesError {
+                ErrorCard(message: breachesError) {
+                    Task { await loadBreaches() }
+                }
+            }
+        }
+    }
+
+    private func breachRow(_ b: BreachResult) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(b.symbol)
+                        .font(.headline)
+                    if let name = b.name {
+                        Text(name)
+                            .font(.caption)
+                            .foregroundStyle(Color.pulseSecondary)
+                            .lineLimit(1)
+                    }
+                }
+                Spacer()
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text(money(b.price))
+                        .font(.subheadline.weight(.semibold))
+                        .heroNumber()
+                    Text(pct(b.changePct))
+                        .font(.caption)
+                        .foregroundStyle((b.changePct ?? 0) >= 0 ? Color.pulseGain : Color.pulseLoss)
+                }
+            }
+            HStack(spacing: 6) {
+                Text(b.isBullish ? "▲" : "▼")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(b.isBullish ? Color.pulseGain : Color.pulseLoss)
+                Text(b.headline)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(b.isBullish ? Color.pulseGain : Color.pulseLoss)
+                if let date = b.breachDate {
+                    Text(date)
+                        .font(.caption)
+                        .foregroundStyle(Color.pulseTertiary)
+                }
+                Spacer()
+                if let dist = b.distancePct {
+                    Text(String(format: "%.1f%% past", dist))
+                        .font(.caption)
+                        .foregroundStyle(Color.pulseSecondary)
+                }
+            }
+        }
+        .padding(.vertical, 6)
     }
 
     private func sortedResults() -> [ScanResult] {
@@ -369,7 +534,21 @@ struct ScannerView: View {
             if !quiet { strategies = [:] }
         }
         await backfillTheta()
+        await loadBreaches()
         loading = false
+    }
+
+    /// S&P 500 level breaches (watchlist excluded). Quiet failures keep the
+    /// previous list; only the first load surfaces an error.
+    private func loadBreaches() async {
+        do {
+            breaches = try await APIClient.shared.breaches()
+            breachesError = nil
+        } catch {
+            if breaches == nil {
+                breachesError = (error as? APIError)?.errorDescription ?? error.localizedDescription
+            }
+        }
     }
 
     /// Fetch ThetaHedge rows directly for symbols the backend hasn't merged yet.

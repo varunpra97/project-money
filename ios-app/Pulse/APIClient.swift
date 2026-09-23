@@ -152,6 +152,10 @@ final class APIClient {
         try await get("/api/scan", ttl: 300)
     }
 
+    func breaches() async throws -> BreachesResponse {
+        try await get("/api/breaches", ttl: 300)
+    }
+
     func quote(_ symbol: String, range: QuoteRange) async throws -> QuoteResponse {
         let ttl: TimeInterval = range == .oneDay ? 60 : 900
         return try await get(

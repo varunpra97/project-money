@@ -26,6 +26,10 @@ if [ ! -f "$DATA_DIR/thetahedge-latest.json" ] && [ -f /app/seed/thetahedge-late
   echo "[entrypoint] seeding thetahedge snapshot"
   cp /app/seed/thetahedge-latest.json "$DATA_DIR/thetahedge-latest.json"
 fi
+if [ ! -f "$DATA_DIR/breaches-latest.json" ] && [ -f /app/seed/breaches-latest.json ]; then
+  echo "[entrypoint] seeding breaches snapshot"
+  cp /app/seed/breaches-latest.json "$DATA_DIR/breaches-latest.json"
+fi
 
 PORT="${PORT:-8504}"
 cd /app/options-seller
