@@ -120,7 +120,9 @@ def fetch_all() -> list[dict]:
                         log.info("ThetaHedge empty page at offset %d; "
                                  "retrying with limit %d", offset, page_size)
                         continue
-                    if offset == 0 and empty_streak < 4:
+                    # Throttled mid-pull: wait it out a few times at any
+                    # offset before accepting the partial result.
+                    if empty_streak < 4:
                         empty_streak += 1
                         time.sleep(30)
                         continue
@@ -263,6 +265,14 @@ def collect() -> dict:
         return (0, wr) if wr > 0 else (1, 0)  # ranked first, best rank first
 
     rows = sorted(merged.values(), key=_rank_key)
+    # Never overwrite a fuller dataset with a thinner one — a throttled pull
+    # must not clobber yesterday's good file.
+    prev = load()
+    if prev and isinstance(prev.get("rows"), dict) and len(prev["rows"]) > len(rows):
+        log.warning("ThetaHedge pull too thin (%d rows < previous %d); "
+                    "keeping previous file from %s",
+                    len(rows), len(prev["rows"]), prev.get("asOf"))
+        return prev
     envelope = {
         "asOf": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "source": "thetahedge",
