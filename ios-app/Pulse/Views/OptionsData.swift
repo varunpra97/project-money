@@ -8,29 +8,40 @@ import Foundation
 private let thetaHedgeURL = URL(string: "https://app.thetahedge.io/api/stock-table")!
 
 func fetchThetaHedgeRow(symbol: String) async throws -> ThetaHedgeRow? {
+    // search_symbol is a SUBSTRING match (e.g. "V" matches hundreds of
+    // tickers, and wheel_rank asc sorts unranked rank-0 rows first), so page
+    // through and exact-match client-side — rows.first is the wrong ticker.
+    // Page size stays at 50: the API returns [] for limit_val >= 75.
     let sym = symbol.uppercased()
-    let body: [String: Any] = [
-        "limit_val": 20,
-        "offset_val": 0,
-        "sort_column": "wheel_rank",
-        "sort_order": "asc",
-        "search_symbol": sym,
-        "condition_strings": [],
-        "symbols": NSNull(),
-        "is_heartbeat": false,
-    ]
-    var req = URLRequest(url: thetaHedgeURL)
-    req.httpMethod = "POST"
-    req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-    req.setValue("application/json", forHTTPHeaderField: "Accept")
-    req.setValue("Pulse-iOS/1.0", forHTTPHeaderField: "User-Agent")
-    req.httpBody = try JSONSerialization.data(withJSONObject: body)
-    req.timeoutInterval = 25
-    let (data, resp) = try await URLSession.shared.data(for: req)
-    guard (resp as? HTTPURLResponse)?.statusCode == 200 else { return nil }
-    let rows = try JSONDecoder().decode([ThetaHedgeRow].self, from: data)
-    // search_symbol is a substring match; keep only the exact symbol.
-    return rows.first
+    var offset = 0
+    for _ in 0..<10 {
+        let body: [String: Any] = [
+            "limit_val": 50,
+            "offset_val": offset,
+            "sort_column": "wheel_rank",
+            "sort_order": "asc",
+            "search_symbol": sym,
+            "condition_strings": [],
+            "symbols": NSNull(),
+            "is_heartbeat": false,
+        ]
+        var req = URLRequest(url: thetaHedgeURL)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.setValue("application/json", forHTTPHeaderField: "Accept")
+        req.setValue("Pulse-iOS/1.0", forHTTPHeaderField: "User-Agent")
+        req.httpBody = try JSONSerialization.data(withJSONObject: body)
+        req.timeoutInterval = 25
+        let (data, resp) = try await URLSession.shared.data(for: req)
+        guard (resp as? HTTPURLResponse)?.statusCode == 200 else { return nil }
+        let rows = try JSONDecoder().decode([ThetaHedgeRow].self, from: data)
+        if let exact = rows.first(where: { $0.symbol?.uppercased() == sym }) {
+            return exact
+        }
+        guard rows.count == 50 else { return nil }  // ran out of matches
+        offset += 50
+    }
+    return nil
 }
 
 // MARK: - Yahoo Finance options chain (free, no key)

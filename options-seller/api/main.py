@@ -351,6 +351,36 @@ def thetahedge_top(limit: int = Query(50, ge=1, le=500)):
     return cached(3600, f"thetahedge:top:{limit}", _build)
 
 
+_thetahedge_refresh_lock = threading.Lock()
+_thetahedge_refresh_last: float = 0.0
+
+
+@app.post("/api/thetahedge/refresh")
+@_api
+def thetahedge_refresh():
+    """Kick off a ThetaHedge recollect in the background (admin/ops use).
+
+    Guarded by a lock and a 15-minute cooldown so it can't be used to hammer
+    ThetaHedge's API. Returns immediately; poll /api/thetahedge for results.
+    """
+    global _thetahedge_refresh_last
+    with _thetahedge_refresh_lock:
+        now = time.time()
+        if now - _thetahedge_refresh_last < 900:
+            return {"status": "cooldown",
+                    "retry_in_seconds": int(900 - (now - _thetahedge_refresh_last))}
+        _thetahedge_refresh_last = now
+
+    def _run():
+        try:
+            thetahedge_collect()
+        except Exception:
+            logging.exception("ThetaHedge manual refresh failed")
+
+    threading.Thread(target=_run, daemon=True).start()
+    return {"status": "started"}
+
+
 @app.get("/api/portfolio/summary")
 @_api
 def portfolio_summary():
@@ -789,12 +819,16 @@ async def collect_client_data():
     async def thetahedge_daily():
         # ThetaHedge rankings refresh once a day (their table updates every
         # 5 min during market hours; daily is plenty for our universe).
+        # Retry hourly until the first successful pull — the API throttles
+        # bursts, so a boot-time failure should heal on its own.
+        first_ok = False
         while True:
             try:
                 await asyncio.to_thread(thetahedge_collect)
+                first_ok = True
             except Exception:
                 logging.exception("ThetaHedge daily collect failed")
-            await asyncio.sleep(86400)
+            await asyncio.sleep(86400 if first_ok else 3600)
     workers = [asyncio.create_task(metadata()), asyncio.create_task(scanner()),
                asyncio.create_task(thetahedge_daily())]
     try:

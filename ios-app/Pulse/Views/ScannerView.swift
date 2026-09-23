@@ -116,6 +116,7 @@ struct ScanEnvelope: Decodable {
 // MARK: - ThetaHedge volatility rankings (/api/thetahedge)
 
 struct ThetaHedgeRow: Decodable {
+    let symbol: String?
     let name: String?
     let price: Double?
     let iv30: Double?
@@ -134,7 +135,7 @@ struct ThetaHedgeRow: Decodable {
     let callIv30d: Double?
 
     enum CodingKeys: String, CodingKey {
-        case name, price, iv30, hv30, sector
+        case symbol, name, price, iv30, hv30, sector
         case ivRank = "iv_rank"
         case avgPutYield30d = "avg_30d_put_yield"
         case avgCallYield30d = "avg_30d_call_yield"
