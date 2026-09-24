@@ -12,6 +12,7 @@ from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 import xml.etree.ElementTree as ET
 from options_seller.paths import data_dir
+from options_seller.ideas import liked_ids as liked_idea_ids
 
 SOURCES = [
     ("Cboe Insights", "Options", "https://www.cboe.com/insights/rss/"),
@@ -20,6 +21,7 @@ SOURCES = [
 ]
 CACHE = data_dir() / "news_cache.json"
 LOCK = threading.Lock()
+VISIBLE_IDEAS = 4
 
 
 def parse_feed(body, source, category):
@@ -53,18 +55,34 @@ def fetch_source(spec):
     return rows
 
 
-def ideas(items):
+def ideas(items, exclude=frozenset()):
+    """Editorial product ideas for the Product lab.
+
+    `exclude` holds liked idea ids — those are dropped, and the queue
+    refills from the backlog in canonical order, so a fresh suggestion
+    always appears at the bottom and the rest move up.
+    """
     themes = [
         ("event-risk", "Event risk beside every position", "earn|fed|rate|inflation", "Place earnings, Fed decisions and ex-dividend dates beside open positions, with a plain-language explanation of the exposure.", "Measure how often paper trades cross a flagged event without a review.", "Medium"),
         ("volatility-lab", "A volatility stress lab", "volatil|vix|option|0dte", "Let users test a price move, volatility jump and one day of time decay against their paper book before opening a trade.", "Measure whether stress previews reduce outsized paper losses.", "Large"),
         ("trade-journal", "Turn news into a trade journal", "market|stock|trade", "Attach a headline and a short thesis to a paper trade; revisit the thesis when the position closes.", "Track journal completion and results by thesis tag.", "Small"),
+        ("data-trust", "Make every number traceable", "backup|source|trust|stale", "Add a source and mark timestamp to each position, plus portable portfolio backups. Separate demo, stale and quoted values throughout the app.", "Track stale-mark coverage and successful restore checks.", "Medium"),
+        ("flow-radar", "Unusual options flow radar", "option|call|put|unusual|flow", "Surface tickers with abnormal options volume versus open interest, so paper trades can follow or fade the smart money.", "Measure paper P&L on flow-flagged trades versus baseline.", "Medium"),
+        ("iv-crush", "IV crush warnings", "volatil|implied|earnings|event", "Flag positions heading into earnings or other events where implied volatility is priced to collapse afterwards.", "Track how often flagged positions avoid post-event premium crush.", "Small"),
+        ("earnings-calendar", "Earnings calendar for your book", "earn|report|guidance|quarter", "A calendar strip of upcoming earnings across watched tickers with the expected move implied by options pricing.", "Measure review rate of positions ahead of their earnings date.", "Small"),
+        ("backtest-card", "One-tap spread backtest", "backtest|histor|strategy|test", "Replay the suggested credit spread against the last year of price history before committing paper capital.", "Compare paper results of backtested versus non-backtested spreads.", "Large"),
+        ("price-alerts", "Level alerts on watched tickers", "alert|break|level|support|resistance", "Notify when a watched ticker crosses a marked support, resistance or moving-average level.", "Track alert open-to-review conversion.", "Medium"),
+        ("pnl-attribution", "P&L attribution by thesis", "journal|thesis|performance|profit", "Break closed paper P&L down by thesis tag, ticker and strategy to show what actually makes money.", "Measure repeat usage of top-attributed strategies.", "Medium"),
     ]
     out = []
     for key, title, pattern, detail, measure, effort in themes:
+        if key in exclude:
+            continue
         related = next((x for x in items if re.search(pattern, x["title"], re.I)), None)
         out.append({"id": key, "title": title, "detail": detail, "measure": measure, "effort": effort,
                     "related_title": related["title"] if related else None, "related_url": related["url"] if related else None})
-    out.append({"id": "data-trust", "title": "Make every number traceable", "detail": "Add a source and mark timestamp to each position, plus portable portfolio backups. Separate demo, stale and quoted values throughout the app.", "measure": "Track stale-mark coverage and successful restore checks.", "effort": "Medium", "related_title": None, "related_url": None})
+        if len(out) >= VISIBLE_IDEAS:
+            break
     return out
 
 
@@ -93,5 +111,5 @@ def news_feed(refresh=False):
                 unique.setdefault(row["url"], {**row, "stale": status["stale"]})
         items = sorted(unique.values(), key=lambda x: x["published"] or "", reverse=True)[:75]
         return {"checked_at": datetime.fromtimestamp(cache["checked"], timezone.utc).isoformat(),
-                "items": items, "ideas": ideas(items),
+                "items": items, "ideas": ideas(items, exclude=liked_idea_ids()),
                 "sources": [{"name": name, "fetched": value["fetched"], "stale": value["stale"]} for name, value in sources.items()]}

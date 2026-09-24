@@ -306,6 +306,21 @@ struct NewsView: View {
         }
     }
 
+    private func likeIdea(_ idea: ProductIdea) async {
+        guard !upgradeBusy else { return }
+        upgradeBusy = true
+        upgradeError = nil
+        defer { upgradeBusy = false }
+        do {
+            try await APIClient.shared.likeIdea(ideaId: idea.id)
+            upgradeJob = nil
+            await load()
+            await refreshUpgrade()
+        } catch {
+            upgradeError = (error as? APIError)?.errorDescription ?? error.localizedDescription
+        }
+    }
+
     private func upgradeControl(for idea: ProductIdea) -> some View {
         Group {
             if let job = upgradeJob, job.idea_id == idea.id, job.status != "undone" {
@@ -347,12 +362,19 @@ struct NewsView: View {
                     Text("Deployed to your iPhone")
                         .font(.callout.weight(.semibold))
                 }
-                Button("Undo this upgrade", role: .destructive) {
-                    Task { await undoUpgrade(job) }
+                HStack(spacing: 8) {
+                    Button("Undo this upgrade", role: .destructive) {
+                        Task { await undoUpgrade(job) }
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(upgradeBusy)
+                    Button("I like it") {
+                        Task { await likeIdea(idea) }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(upgradeBusy)
                 }
-                .buttonStyle(.bordered)
-                .disabled(upgradeBusy)
-                Text("Reverts the upgrade's changes and reinstalls the previous build.")
+                Text("Undo reverts the upgrade. I like it keeps it and swaps in a fresh suggestion.")
                     .font(.caption).foregroundStyle(Color.pulseSecondary)
             case "undo_requested", "undoing":
                 statusRow("Undoing — reverting the changes and reinstalling the previous build.")

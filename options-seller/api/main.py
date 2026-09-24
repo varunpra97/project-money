@@ -1082,9 +1082,11 @@ def symbol_details(symbol: str, refresh: bool = False):
 try:
     from .analytics import performance
     from .news import news_feed
+    from .ideas import like_idea
 except ImportError:  # startup script runs from api/
     from analytics import performance
     from news import news_feed
+    from ideas import like_idea
 
 
 @app.get("/api/performance")
@@ -1095,6 +1097,15 @@ def performance_endpoint(period: str = Query("lifetime", pattern="^(lifetime|wee
 @app.get("/api/news")
 def news_endpoint(refresh: bool = False):
     return news_feed(refresh=refresh)
+
+
+@app.post("/api/ideas/{idea_id}/like")
+@_api
+def idea_like(idea_id: str):
+    """"I like it" on a deployed upgrade: drop the suggestion from the
+    Product lab queue; the queue refills from the backlog."""
+    like_idea(idea_id)
+    return {"ok": True, "idea_id": idea_id}
 
 
 try:

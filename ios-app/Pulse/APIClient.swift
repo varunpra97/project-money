@@ -216,4 +216,10 @@ final class APIClient {
     func requestUpgradeUndo(jobId: String) async throws -> UpgradeJob {
         try await post("/api/upgrades/\(jobId)/request-undo")
     }
+
+    func likeIdea(ideaId: String) async throws {
+        struct Ack: Decodable { let ok: Bool }
+        let ack: Ack = try await post("/api/ideas/\(ideaId)/like")
+        if !ack.ok { throw APIError.server("Like was not saved") }
+    }
 }
