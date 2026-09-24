@@ -181,6 +181,11 @@ final class APIClient {
         try await get("/api/breaches", ttl: 300)
     }
 
+    /// Upcoming earnings / ex-dividend dates per symbol, plus FOMC dates.
+    func events(symbols: [String]) async throws -> EventsResponse {
+        try await get("/api/events", query: ["symbols": symbols.joined(separator: ",")], ttl: 0)
+    }
+
     func quote(_ symbol: String, range: QuoteRange) async throws -> QuoteResponse {
         let ttl: TimeInterval = range == .oneDay ? 60 : 900
         return try await get(

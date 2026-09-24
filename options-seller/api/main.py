@@ -529,6 +529,17 @@ def upgrades_complete_undo(job_id: str, body: dict):
     return job
 
 
+@app.get("/api/events")
+@_api
+def events_endpoint(symbols: str = ""):
+    """Upcoming earnings, ex-dividend, and FOMC decision dates for symbols.
+
+    Used by the iOS app to show event risk beside open positions.
+    Never fails the request — an unresolvable symbol just gets empty dates.
+    """
+    return events_get(symbols)
+
+
 @app.get("/api/version")
 @_api
 def version():
@@ -1105,6 +1116,7 @@ try:
     from .collect_scan import collect as collect_scan
     from .thetahedge import collect as thetahedge_collect, load as thetahedge_load
     from .breaches import collect as breaches_collect, load as breaches_load
+    from .events import get_events as events_get
     from .upgrades import (
         create_job as upgrades_create,
         latest_job as upgrades_latest,
@@ -1122,6 +1134,7 @@ except ImportError:
     from collect_scan import collect as collect_scan
     from thetahedge import collect as thetahedge_collect, load as thetahedge_load
     from breaches import collect as breaches_collect, load as breaches_load
+    from events import get_events as events_get
     from upgrades import (
         create_job as upgrades_create,
         latest_job as upgrades_latest,

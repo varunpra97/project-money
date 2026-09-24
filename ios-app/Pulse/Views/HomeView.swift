@@ -9,6 +9,9 @@ struct HomeView: View {
     @State private var range: QuoteRange = .oneDay
     @State private var selectedDate: Date?
     @State private var expandedId: String?
+    @State private var eventCache: [String: SymbolEvents] = [:]
+    @State private var fomcDates: [String] = []
+    @State private var eventsLoading = false
     @State private var positionMetric = "Total gain/loss"
     private let positionMetrics = ["Total gain/loss", "Today’s gain/loss", "Percent change", "Total equity"]
 
@@ -184,9 +187,11 @@ struct HomeView: View {
     private func positionRow(_ pos: Position) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             Button {
+                let willExpand = expandedId != pos.id
                 withAnimation(.easeInOut(duration: 0.2)) {
                     expandedId = (expandedId == pos.id) ? nil : pos.id
                 }
+                if willExpand { loadEvents(for: pos.underlying) }
             } label: {
                 HStack {
                     VStack(alignment: .leading, spacing: 2) {
@@ -235,6 +240,8 @@ struct HomeView: View {
 
             if expandedId == pos.id {
                 creditRiskSection(pos)
+                Divider().background(Color.white.opacity(0.12))
+                eventRiskSection(pos)
                 Divider().background(Color.white.opacity(0.12))
                 LazyVGrid(
                     columns: [GridItem(.flexible(), alignment: .leading),
@@ -354,4 +361,128 @@ struct HomeView: View {
             if !Task.isCancelled { self.error="Chart refresh failed. Showing the last dated chart. " + error.localizedDescription }
         }
     }
+
+    // MARK: - Event risk
+
+    private func loadEvents(for symbol: String) {
+        let sym = symbol.uppercased()
+        guard eventCache[sym] == nil, !eventsLoading else { return }
+        eventsLoading = true
+        Task {
+            do {
+                let resp = try await APIClient.shared.events(symbols: [sym])
+                await MainActor.run {
+                    if let ev = resp.events[sym] { eventCache[sym] = ev }
+                    fomcDates = resp.fomcDates
+                    eventsLoading = false
+                }
+            } catch {
+                await MainActor.run { eventsLoading = false }
+            }
+        }
+    }
+
+    private func eventRiskSection(_ pos: Position) -> some View {
+        let items = riskItems(for: pos.underlying.uppercased())
+        return VStack(alignment: .leading, spacing: 8) {
+            Text("Event risk")
+                .font(.caption)
+                .foregroundStyle(Color.pulseSecondary)
+            if eventsLoading && eventCache[pos.underlying.uppercased()] == nil {
+                ProgressView().scaleEffect(0.8)
+            } else if items.isEmpty {
+                Text("No earnings, dividend, or Fed dates in the next 45 days.")
+                    .font(.caption)
+                    .foregroundStyle(Color.pulseSecondary)
+            } else {
+                ForEach(items) { item in
+                    HStack(alignment: .top, spacing: 8) {
+                        Text(item.icon)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(item.title)
+                                .font(.caption.weight(.semibold))
+                            Text(item.note)
+                                .font(.caption)
+                                .foregroundStyle(Color.pulseSecondary)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func riskItems(for symbol: String) -> [EventRiskItem] {
+        var items: [EventRiskItem] = []
+        let ev = eventCache[symbol]
+        if let d = ev?.earningsDate, let days = daysUntil(d), days >= 0, days <= 45 {
+            items.append(EventRiskItem(
+                icon: "\u{1F4CA}",
+                title: "Earnings \(prettyDate(d)) \u{00B7} \(days)d out",
+                note: "The stock can gap overnight on the print. Option spreads often widen into the event, so exits get pricier.",
+                daysOut: days))
+        }
+        if let d = ev?.exDividendDate, let days = daysUntil(d), days >= 0, days <= 45 {
+            items.append(EventRiskItem(
+                icon: "\u{1F4B5}",
+                title: "Ex-dividend \(prettyDate(d)) \u{00B7} \(days)d out",
+                note: "The stock usually drops by the dividend amount at the open. Short calls can be assigned early when the dividend beats the remaining time value.",
+                daysOut: days))
+        }
+        for d in fomcDates {
+            if let days = daysUntil(d), days >= 0, days <= 45 {
+                items.append(EventRiskItem(
+                    icon: "\u{1F3E6}",
+                    title: "Fed decision \(prettyDate(d)) \u{00B7} \(days)d out",
+                    note: "Rate decisions can swing the whole market. Index-correlated positions feel it most \u{2014} volatility usually jumps into the announcement.",
+                    daysOut: days))
+                break
+            }
+        }
+        return items.sorted { $0.daysOut < $1.daysOut }
+    }
+
+    private func daysUntil(_ isoDate: String) -> Int? {
+        let fmt = DateFormatter()
+        fmt.dateFormat = "yyyy-MM-dd"
+        fmt.timeZone = TimeZone(secondsFromGMT: 0)
+        guard let d = fmt.date(from: isoDate) else { return nil }
+        let cal = Calendar.current
+        return cal.dateComponents([.day], from: cal.startOfDay(for: Date()), to: cal.startOfDay(for: d)).day
+    }
+
+    private func prettyDate(_ isoDate: String) -> String {
+        let fmt = DateFormatter()
+        fmt.dateFormat = "yyyy-MM-dd"
+        fmt.timeZone = TimeZone(secondsFromGMT: 0)
+        guard let d = fmt.date(from: isoDate) else { return isoDate }
+        let out = DateFormatter()
+        out.dateFormat = "MMM d"
+        return out.string(from: d)
+    }
+}
+
+struct SymbolEvents: Decodable {
+    let earningsDate: String?
+    let exDividendDate: String?
+    enum CodingKeys: String, CodingKey {
+        case earningsDate = "earnings_date"
+        case exDividendDate = "ex_dividend_date"
+    }
+}
+
+struct EventsResponse: Decodable {
+    let events: [String: SymbolEvents]
+    let fomcDates: [String]
+    enum CodingKeys: String, CodingKey {
+        case events
+        case fomcDates = "fomc_dates"
+    }
+}
+
+struct EventRiskItem: Identifiable {
+    let id = UUID()
+    let icon: String
+    let title: String
+    let note: String
+    let daysOut: Int
 }
