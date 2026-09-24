@@ -193,7 +193,8 @@ struct NewsView: View {
     @State private var error: String?
     @State private var upgradeJob: UpgradeJob?
     @State private var upgradeError: String?
-    @State private var upgradeBusy = false    private var headlines: [NewsHeadline] {
+    @State private var upgradeBusy = false
+    private var headlines: [NewsHeadline] {
         report?.items.filter { filter == "All" || $0.category == filter } ?? []
     }
     var body: some View {
