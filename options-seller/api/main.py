@@ -458,7 +458,7 @@ def upgrades_active():
     """Latest upgrade job of any status — what the app polls to render the
     Build/Undo button state."""
     job = upgrades_latest()
-    return {"job": job}
+    return {"job": job, "store": upgrades_store()}
 
 
 @app.get("/api/upgrades/pending")
@@ -1128,6 +1128,7 @@ try:
         request_undo as upgrades_request_undo_job,
         start_undo as upgrades_start_undo_job,
         complete_undo as upgrades_complete_undo_job,
+        store as upgrades_store,
     )
 except ImportError:
     from data_status import catalog
@@ -1146,6 +1147,7 @@ except ImportError:
         request_undo as upgrades_request_undo_job,
         start_undo as upgrades_start_undo_job,
         complete_undo as upgrades_complete_undo_job,
+        store as upgrades_store,
     )
 
 

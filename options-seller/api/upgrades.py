@@ -283,6 +283,12 @@ def _use_db() -> bool:
     return _db_configured()
 
 
+def store() -> str:
+    """Which backing store the queue is using — surfaced so we can verify
+    the database is actually live."""
+    return "postgres" if _use_db() else "json"
+
+
 def latest_job() -> dict | None:
     """The most recent job of any status (what the app shows)."""
     if _use_db():
