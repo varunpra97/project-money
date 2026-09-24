@@ -12,7 +12,7 @@ from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 import xml.etree.ElementTree as ET
 from options_seller.paths import data_dir
-from options_seller.ideas import liked_ids as liked_idea_ids
+from ideas import liked_ids as liked_idea_ids
 
 SOURCES = [
     ("Cboe Insights", "Options", "https://www.cboe.com/insights/rss/"),
