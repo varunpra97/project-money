@@ -30,6 +30,9 @@ from pathlib import Path
 log = logging.getLogger("pulse.upgrades")
 
 ACTIVE_STATES = {"pending", "building", "deployed", "undo_requested", "undoing"}
+# A finished deploy is a resting state, not "in progress" — it must not block
+# new upgrade requests. Only genuinely in-flight jobs block the queue.
+IN_PROGRESS_STATES = ACTIVE_STATES - {"deployed"}
 TERMINAL_STATES = {"failed", "undone"}
 
 _JOB_COLS = (
@@ -168,7 +171,7 @@ def _db_create(idea: dict) -> dict:
         with conn.cursor() as cur:
             cur.execute(
                 "SELECT id FROM upgrade_jobs WHERE status = ANY(%s) LIMIT 1",
-                (list(ACTIVE_STATES),),
+                (list(IN_PROGRESS_STATES),),
             )
             if cur.fetchone():
                 raise ValueError("another upgrade is already in progress")
@@ -241,7 +244,7 @@ def _json_find(jobs: list[dict], job_id: str) -> dict | None:
 
 def _json_create(idea: dict) -> dict:
     jobs = _json_load()
-    if any(j.get("status") in ACTIVE_STATES for j in jobs):
+    if any(j.get("status") in IN_PROGRESS_STATES for j in jobs):
         raise ValueError("another upgrade is already in progress")
     job = {
         "id": uuid.uuid4().hex[:8],
@@ -309,7 +312,7 @@ def undo_requested_jobs() -> list[dict]:
 
 
 def create_job(idea: dict) -> dict:
-    """File a new upgrade request. Refuses when another job is active."""
+    """File a new upgrade request. Refuses when another job is in progress."""
     if _use_db():
         return _db_create(idea)
     return _json_create(idea)
