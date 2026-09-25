@@ -173,8 +173,8 @@ struct HomeView: View {
                 Picker("Position value display", selection: $positionMetric) {
                     ForEach(positionMetrics, id: \.self) { Text($0).tag($0) }
                 }
+                .pickerStyle(.menu)
             }
-            .pickerStyle(.menu)
             Text(metricNote).font(.caption).foregroundStyle(Color.pulseSecondary)
             NavigationLink {
                 StressLabView()
