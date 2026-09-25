@@ -23,7 +23,7 @@ from __future__ import annotations
 import logging
 import math
 import time
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import Any, Optional
 
 log = logging.getLogger("pulse.stress")
@@ -96,11 +96,91 @@ def _market_yfinance(sym: str) -> dict[str, Any]:
     return out
 
 
+def _safe_f(r, key):
+    """Finite float from a quote dict, or 0.0."""
+    try:
+        f = float(r.get(key))
+        return f if math.isfinite(f) else 0.0
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _invert_iv(price: float, spot: float, strike: float, t_years: float,
+               is_call: bool) -> Optional[float]:
+    """Implied vol (bisection) whose Black-Scholes price matches a market price.
+
+    Returns None when the price cannot be produced by any vol in [0.02, 3.0]
+    (stale/odd last-trade prints), so they never pollute the median.
+    """
+    lo, hi = 0.02, 3.0
+    try:
+        if _bs_price(spot, strike, t_years, RISK_FREE, hi, is_call) < price:
+            return None
+        if _bs_price(spot, strike, t_years, RISK_FREE, lo, is_call) >= price:
+            return None
+        for _ in range(50):
+            mid = (lo + hi) / 2.0
+            if _bs_price(spot, strike, t_years, RISK_FREE, mid, is_call) < price:
+                lo = mid
+            else:
+                hi = mid
+    except Exception:
+        return None
+    return (lo + hi) / 2.0
+
+
+def _parse_opt_expiry(ymd: str) -> Optional[date]:
+    """YYMMDD from the option root symbol -> date, or None."""
+    try:
+        return date(2000 + int(ymd[:2]), int(ymd[2:4]), int(ymd[4:6]))
+    except (ValueError, IndexError):
+        return None
+
+
+def _iv_from_lasts(data: dict, spot: float) -> Optional[float]:
+    """Estimate IV from CBOE delayed quotes when the feed carries no IV field.
+
+    CBOE delayed quotes publish no bid/ask or greeks (all 0.0) but DO publish
+    spot and last_trade_price. Invert Black-Scholes on near-the-money
+    contracts with near-term expiry (3..60 days) and take the median of the
+    resolved vols — a robust estimate good enough for the stress lab.
+    """
+    import re as _re2
+    today = date.today()
+    vols: list[float] = []
+    for r in data.get("options") or []:
+        m = _re2.match(r"^(.+?)(\d{6})([CP])(\d{8})$", str(r.get("option") or ""))
+        if not m:
+            continue
+        expiry = _parse_opt_expiry(m.group(2))
+        if expiry is None:
+            continue
+        days = (expiry - today).days
+        if days < 3 or days > 60:
+            continue
+        strike = int(m.group(4)) / 1000.0
+        if strike < spot * 0.95 or strike > spot * 1.05:
+            continue
+        last = _safe_f(r, "last_trade_price")
+        if last < 0.05:
+            continue
+        vol = _invert_iv(last, spot, strike, max(days, 1) / 365.0,
+                         m.group(3) == "C")
+        if vol is not None and 0.02 < vol < 3.0:
+            vols.append(vol)
+    if not vols:
+        return None
+    vols.sort()
+    return vols[len(vols) // 2]
+
+
 def _market_cboe(sym: str) -> dict[str, Any]:
     """CBOE 15-min delayed quotes fallback (cdn.cboe.com, no auth).
 
     Same source the /api/options chain proxy falls back to — reachable from
-    datacenter IPs where Yahoo blocks yfinance."""
+    datacenter IPs where Yahoo blocks yfinance. The delayed feed carries no
+    IV field, so IV is estimated by inverting Black-Scholes on near-term
+    last-trade prices (median of resolved vols)."""
     import json as _json
     import re as _re
     import urllib.request
@@ -141,6 +221,12 @@ def _market_cboe(sym: str) -> dict[str, Any]:
     if ivs:
         ivs.sort()
         out["iv"] = ivs[len(ivs) // 2]
+    if out["iv"] is None:
+        # CBOE delayed quotes carry no IV field (all 0.0): estimate it from
+        # last-trade prices so the lab works from datacenter IPs.
+        est = _iv_from_lasts(data, spot)
+        if est is not None:
+            out["iv"] = round(est, 4)
     return out
 
 
