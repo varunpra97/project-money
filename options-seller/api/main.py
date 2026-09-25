@@ -32,7 +32,7 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -551,6 +551,86 @@ def stress_endpoint(body: dict):
         vol_jump_pct=body.get("vol_jump_pct", 0),
         days_forward=body.get("days_forward", 1),
     )
+
+
+def _brokerage_unauthorized():
+    return JSONResponse({"error": "unauthorized"}, status_code=401)
+
+
+@app.post("/api/brokerage/sync")
+@_api
+def brokerage_sync(body: dict, request: Request):
+    """Ingest a Plaid holdings snapshot from the assistant VM's sync job.
+    Auth: X-Sync-Token == BROKERAGE_SYNC_TOKEN."""
+    if not brokerage_sync_ok(request.headers.get("x-sync-token")):
+        return _brokerage_unauthorized()
+    return brokerage_save(body or {})
+
+
+def _brokerage_snapshot_or_404():
+    snap = brokerage_load()
+    if not snap:
+        return None, JSONResponse({"error": "no brokerage snapshot synced yet"},
+                                  status_code=404)
+    return snap, None
+
+
+@app.get("/api/brokerage/positions")
+@_api
+def brokerage_positions(request: Request):
+    """Real open positions, mapped to the portfolio position shape.
+    Auth: X-App-Token == APP_READ_TOKEN."""
+    if not brokerage_app_ok(request.headers.get("x-app-token")):
+        return _brokerage_unauthorized()
+    snap, err = _brokerage_snapshot_or_404()
+    if err:
+        return err
+    return {"positions": snap.get("positions") or [],
+            "as_of": snap.get("synced_at")}
+
+
+@app.get("/api/brokerage/summary")
+@_api
+def brokerage_summary(request: Request):
+    """Account summary for the real book. Auth: X-App-Token."""
+    if not brokerage_app_ok(request.headers.get("x-app-token")):
+        return _brokerage_unauthorized()
+    snap, err = _brokerage_snapshot_or_404()
+    if err:
+        return err
+    return snap.get("summary") or {}
+
+
+@app.get("/api/brokerage/status")
+@_api
+def brokerage_status(request: Request):
+    """Sync health for the real book. Auth: X-App-Token."""
+    if not brokerage_app_ok(request.headers.get("x-app-token")):
+        return _brokerage_unauthorized()
+    snap = brokerage_load()
+    if not snap:
+        return {"synced": False}
+    return {"synced": True,
+            "synced_at": snap.get("synced_at"),
+            "positions": len(snap.get("positions") or []),
+            "holdings": len(snap.get("holdings") or [])}
+
+
+@app.post("/api/brokerage/stress/test")
+@_api
+def brokerage_stress_endpoint(body: dict, request: Request):
+    """Volatility stress lab against the real book. Auth: X-App-Token."""
+    if not brokerage_app_ok(request.headers.get("x-app-token")):
+        return _brokerage_unauthorized()
+    try:
+        return brokerage_stress_run(
+            price_move_pct=body.get("price_move_pct", 0),
+            vol_jump_pct=body.get("vol_jump_pct", 0),
+            days_forward=body.get("days_forward", 1),
+        )
+    except LookupError:
+        return JSONResponse({"error": "no brokerage snapshot synced yet"},
+                            status_code=404)
 
 
 @app.get("/api/version")
@@ -1142,6 +1222,13 @@ try:
     from .breaches import collect as breaches_collect, load as breaches_load
     from .events import get_events as events_get
     from .stress import run_stress_test as stress_run
+    from .stress import run_brokerage_stress_test as brokerage_stress_run
+    from .brokerage import (
+        save_snapshot as brokerage_save,
+        load_snapshot as brokerage_load,
+        sync_token_ok as brokerage_sync_ok,
+        app_token_ok as brokerage_app_ok,
+    )
     from .upgrades import (
         create_job as upgrades_create,
         latest_job as upgrades_latest,
@@ -1162,6 +1249,13 @@ except ImportError:
     from breaches import collect as breaches_collect, load as breaches_load
     from events import get_events as events_get
     from stress import run_stress_test as stress_run
+    from stress import run_brokerage_stress_test as brokerage_stress_run
+    from brokerage import (
+        save_snapshot as brokerage_save,
+        load_snapshot as brokerage_load,
+        sync_token_ok as brokerage_sync_ok,
+        app_token_ok as brokerage_app_ok,
+    )
     from upgrades import (
         create_job as upgrades_create,
         latest_job as upgrades_latest,

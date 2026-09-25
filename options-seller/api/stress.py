@@ -308,6 +308,12 @@ def _position_stress(pos: dict[str, Any], move_pct: float, vol_pct: float,
         base_val += qty * _MULT * spot
         fwd_val += qty * _MULT * spot_fwd
 
+    # Plain shares (real brokerage book): the stock moves 1:1 with spot.
+    if strategy == "shares":
+        qty = float(pos.get("qty") or 0)
+        base_val += qty * spot
+        fwd_val += qty * spot_fwd
+
     pnl = fwd_val - base_val
     max_loss = pos.get("max_loss")
     denom = None
@@ -327,24 +333,19 @@ def _position_stress(pos: dict[str, Any], move_pct: float, vol_pct: float,
     return base
 
 
-def run_stress_test(price_move_pct: Any = 0, vol_jump_pct: Any = 0,
-                    days_forward: Any = 1) -> dict[str, Any]:
-    """Shock the open paper book; returns per-position + portfolio impact."""
+def run_stress_on_positions(opens: list[dict[str, Any]],
+                           price_move_pct: Any = 0, vol_jump_pct: Any = 0,
+                           days_forward: Any = 1,
+                           paper: bool = True) -> dict[str, Any]:
+    """Shock an explicit position list; shared by the paper book and the
+    real brokerage snapshot."""
     move_pct = _clamp(price_move_pct, -50, 50, 0)
     vol_pct = _clamp(vol_jump_pct, 0, 300, 0)
     days_fwd = int(_clamp(days_forward, 0, 30, 1))
 
-    from options_seller.portfolio.api import list_open, load_executor
-
     positions: list[dict[str, Any]] = []
     total_base = 0.0
     total_fwd = 0.0
-    try:
-        ex = load_executor()
-        opens = [p for p in list_open(ex) if p.get("status") == "open"]
-    except Exception:
-        log.warning("stress: could not load open positions", exc_info=True)
-        opens = []
     for p in opens:
         try:
             row = _position_stress(p, move_pct, vol_pct, days_fwd)
@@ -371,5 +372,39 @@ def run_stress_test(price_move_pct: Any = 0, vol_jump_pct: Any = 0,
             "pnl": round(total_fwd - total_base, 2),
         },
         "positions": positions,
-        "paper_trading_only": True,
+        "paper_trading_only": paper,
     }
+
+
+def run_stress_test(price_move_pct: Any = 0, vol_jump_pct: Any = 0,
+                    days_forward: Any = 1) -> dict[str, Any]:
+    """Shock the open paper book; returns per-position + portfolio impact."""
+    from options_seller.portfolio.api import list_open, load_executor
+
+    try:
+        ex = load_executor()
+        opens = [p for p in list_open(ex) if p.get("status") == "open"]
+    except Exception:
+        log.warning("stress: could not load open positions", exc_info=True)
+        opens = []
+    return run_stress_on_positions(opens, price_move_pct, vol_jump_pct,
+                                   days_forward, paper=True)
+
+
+def run_brokerage_stress_test(price_move_pct: Any = 0, vol_jump_pct: Any = 0,
+                              days_forward: Any = 1) -> dict[str, Any]:
+    """Shock the real brokerage snapshot; raises LookupError when no snapshot
+    has synced yet."""
+    try:
+        from .brokerage import load_snapshot
+    except ImportError:
+        from brokerage import load_snapshot
+
+    snap = load_snapshot()
+    if not snap:
+        raise LookupError("no brokerage snapshot synced yet")
+    positions = (snap.get("positions") or [])
+    out = run_stress_on_positions(positions, price_move_pct, vol_jump_pct,
+                                  days_forward, paper=False)
+    out["snapshot_as_of"] = snap.get("synced_at")
+    return out
