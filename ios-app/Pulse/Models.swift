@@ -44,9 +44,10 @@ struct PositionLeg: Decodable {
     let strike: Double?
     let quantity: Double?
     let expiry: String?
+    let value: Double?
 
     enum CodingKeys: String, CodingKey {
-        case side, strike, quantity, expiry
+        case side, strike, quantity, expiry, value
         case optionType = "option_type"
     }
 }

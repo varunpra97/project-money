@@ -169,8 +169,10 @@ struct HomeView: View {
     private var positionsSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             SectionHeader("Positions", subtitle: summary.map { "\($0.openPositions) open" + (isLiveBook ? " · live" : " · paper") })
-            Picker("Position value display", selection: $positionMetric) {
-                ForEach(positionMetrics, id: \.self) { Text($0).tag($0) }
+            if !isLiveBook {
+                Picker("Position value display", selection: $positionMetric) {
+                    ForEach(positionMetrics, id: \.self) { Text($0).tag($0) }
+                }
             }
             .pickerStyle(.menu)
             Text(metricNote).font(.caption).foregroundStyle(Color.pulseSecondary)
@@ -214,7 +216,52 @@ struct HomeView: View {
         .sensoryFeedback(.selection, trigger: expandedId)
     }
 
+    @ViewBuilder
     private func positionRow(_ pos: Position) -> some View {
+        if isLiveBook {
+            livePositionRow(pos)
+        } else {
+            paperPositionRow(pos)
+        }
+    }
+
+    /// Robinhood-style row: title, "expiry · size" subtitle, market-value pill.
+    private func livePositionRow(_ pos: Position) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Button {
+                let willExpand = expandedId != pos.id
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    expandedId = (expandedId == pos.id) ? nil : pos.id
+                }
+                if willExpand { loadEvents(for: pos.underlying) }
+            } label: {
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(positionTitle(pos))
+                            .font(.headline)
+                        Text(positionSubtitle(pos))
+                            .font(.caption)
+                            .foregroundStyle(Color.pulseSecondary)
+                            .lineLimit(1)
+                    }
+                    Spacer()
+                    marketValuePill(pos)
+                    Image(systemName: "chevron.down")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Color.pulseTertiary)
+                        .rotationEffect(.degrees(expandedId == pos.id ? 180 : 0))
+                }
+            }
+            .buttonStyle(.plain)
+
+            if expandedId == pos.id {
+                liveDetail(pos)
+            }
+        }
+        .card()
+    }
+
+    private func paperPositionRow(_ pos: Position) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             Button {
                 let willExpand = expandedId != pos.id
@@ -270,9 +317,9 @@ struct HomeView: View {
 
             if expandedId == pos.id {
                 creditRiskSection(pos)
-                Divider().background(Color.white.opacity(0.12))
+                Divider().background(Color.primary.opacity(0.12))
                 eventRiskSection(pos)
-                Divider().background(Color.white.opacity(0.12))
+                Divider().background(Color.primary.opacity(0.12))
                 LazyVGrid(
                     columns: [GridItem(.flexible(), alignment: .leading),
                               GridItem(.flexible(), alignment: .leading)],
@@ -293,6 +340,152 @@ struct HomeView: View {
             }
         }
         .card()
+    }
+
+    // MARK: - Robinhood-style live rows
+
+    private func positionTitle(_ pos: Position) -> String {
+        if pos.strategy == "shares" { return pos.underlying }
+        guard let legs = pos.legs, !legs.isEmpty else { return pos.displayName }
+        let isPut = legs.first?.optionType == "put"
+        let strikes = legs.compactMap(\.strike).sorted(by: >)
+        let noun = legs.count > 1 ? (isPut ? "Puts" : "Calls") : (isPut ? "Put" : "Call")
+        let s = strikes.map { "$" + String(format: "%g", $0) }.joined(separator: " / ")
+        return "\(pos.underlying) \(s) \(noun)"
+    }
+
+    private func positionSubtitle(_ pos: Position) -> String {
+        if pos.strategy == "shares" {
+            return "\(pos.qty.map { String(format: "%g", $0) } ?? "—") Shares"
+        }
+        var parts: [String] = []
+        if let e = shortExpiry(pos.expiry) { parts.append(e) }
+        let q = pos.qty.map { String(format: "%.0f", $0) } ?? "—"
+        parts.append("\(q) \(positionDescriptor(pos))")
+        return parts.joined(separator: " · ")
+    }
+
+    private func positionDescriptor(_ pos: Position) -> String {
+        let s = pos.strategy
+        if s.contains("spread") { return pos.premiumDirection == "credit" ? "Credit Spreads" : "Debit Spreads" }
+        if s.hasPrefix("long_") { return "Buys" }
+        if s.hasPrefix("short_") { return "Sells" }
+        return "Contracts"
+    }
+
+    private func shortExpiry(_ expiry: String?) -> String? {
+        guard let expiry else { return nil }
+        let parts = expiry.split(separator: "-")
+        if parts.count >= 3, let m = Int(parts[1]), let d = Int(parts[2]) { return "\(m)/\(d)" }
+        return nil
+    }
+
+    private func mediumExpiry(_ expiry: String?) -> String {
+        guard let expiry else { return "—" }
+        let parts = expiry.split(separator: "-")
+        if parts.count >= 3, let m = Int(parts[1]), let d = Int(parts[2]) {
+            return "\(m)/\(d)/\(parts[0].suffix(2))"
+        }
+        return expiry
+    }
+
+    private func signedQty(_ pos: Position) -> String {
+        guard let q = pos.qty else { return "—" }
+        if pos.strategy == "shares" { return String(format: "%g", q) }
+        return String(format: "%g", pos.premiumDirection == "credit" ? -q : q)
+    }
+
+    private func marketValuePill(_ pos: Position) -> some View {
+        Text(pos.equity.map { signedMoney($0) } ?? "—")
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(.white)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(marketValuePillColor(pos.equity))
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+    }
+
+    private func marketValuePillColor(_ v: Double?) -> Color {
+        guard let v else { return Color.pulseTertiary }
+        return v >= 0 ? Color.pulseGreen : Color.pulseRed
+    }
+
+    private func legTitle(_ underlying: String, _ leg: PositionLeg) -> String {
+        let strike = leg.strike.map { "$" + String(format: "%g", $0) } ?? ""
+        let kind = leg.optionType == "put" ? "Put" : "Call"
+        return "\(underlying) \(strike) \(kind)".trimmingCharacters(in: .whitespaces)
+    }
+
+    private func legSubtitle(_ leg: PositionLeg) -> String {
+        var parts: [String] = []
+        if let e = shortExpiry(leg.expiry) { parts.append(e) }
+        let q = leg.quantity.map { String(format: "%g", $0) } ?? "—"
+        parts.append("\(q) \((leg.side == "sell") ? "Sells" : "Buys")")
+        return parts.joined(separator: " · ")
+    }
+
+    /// Per-contract price, like Robinhood's leg rows.
+    private func legPrice(_ leg: PositionLeg) -> String {
+        guard let v = leg.value, let q = leg.quantity, q > 0 else { return "—" }
+        return money(abs(v) / (q * 100))
+    }
+
+    /// Expanded "Your position" detail for the real book.
+    private func liveDetail(_ pos: Position) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Your position")
+                .font(.headline)
+            LazyVGrid(
+                columns: [GridItem(.flexible(), alignment: .leading),
+                          GridItem(.flexible(), alignment: .leading)],
+                spacing: 10
+            ) {
+                stat("Quantity", signedQty(pos))
+                stat("Market value", signedMoney(pos.equity))
+                if pos.strategy != "shares" {
+                    stat("Expiration date", mediumExpiry(pos.expiry))
+                }
+                stat("Tracked since", relativeString(pos.openedAt))
+            }
+            if let legs = pos.legs, !legs.isEmpty {
+                Text("Options")
+                    .font(.headline)
+                    .padding(.top, 4)
+                ForEach(Array(legs.enumerated()), id: \.offset) { idx, leg in
+                    VStack(alignment: .leading, spacing: 0) {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(legTitle(pos.underlying, leg))
+                                    .font(.subheadline)
+                                Text(legSubtitle(leg))
+                                    .font(.caption)
+                                    .foregroundStyle(Color.pulseSecondary)
+                            }
+                            Spacer()
+                            Text(legPrice(leg))
+                                .font(.subheadline)
+                        }
+                        .padding(.vertical, 6)
+                        if idx < legs.count - 1 {
+                            Divider().background(Color.primary.opacity(0.08))
+                        }
+                    }
+                }
+            }
+            if let risk = pos.maxLoss, risk > 0 {
+                HStack {
+                    Text("Max risk")
+                        .font(.caption)
+                        .foregroundStyle(Color.pulseSecondary)
+                    Spacer()
+                    Text(money(risk))
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Color.pulseRed)
+                }
+            }
+            Divider().background(Color.primary.opacity(0.12))
+            eventRiskSection(pos)
+        }
     }
 
     private func stat(_ label: String, _ value: String) -> some View {
@@ -357,7 +550,7 @@ struct HomeView: View {
             }
         }
         .padding(12)
-        .background(Color.white.opacity(0.06))
+        .background(Color.primary.opacity(0.06))
         .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 

@@ -4,6 +4,8 @@ import Charts
 struct PerformanceReport: Decodable {
     let period: String
     let as_of: String
+    let mode: String?
+    let account_value: Double?
     let pnl: Double?
     let realized: Double
     let unrealized: Double
@@ -50,7 +52,7 @@ struct PerformanceView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
-                    Text("YOUR PAPER PORTFOLIO").font(.caption2.weight(.bold)).foregroundStyle(Color.pulseGreen)
+                    Text(report?.mode == "live" ? "YOUR BROKERAGE ACCOUNT" : "YOUR PAPER PORTFOLIO").font(.caption2.weight(.bold)).foregroundStyle(Color.pulseGreen)
                     Picker("Period", selection: $period) {
                         Text("Lifetime").tag("lifetime")
                         Text("1 week").tag("week")
@@ -62,16 +64,25 @@ struct PerformanceView: View {
                         VStack(alignment: .leading, spacing: 12) {
                             Text(period == "lifetime" ? "Lifetime total P&L" : "Period total P&L").foregroundStyle(Color.pulseSecondary)
                             Text(money(d.pnl)).font(.system(size: 38, weight: .semibold)).heroNumber().foregroundStyle((d.pnl ?? 0) < 0 ? Color.pulseRed : Color.pulseGreen)
-                            Text(d.pnl == nil ? "Not enough historical marks for this period" : "Realized results + change in unrealized P&L").font(.caption).foregroundStyle(Color.pulseSecondary)
-                            Text("\(d.open_positions) positions open now · Paper / saved marks").font(.caption)
+                            Text(liveMode(d) ? "Change in account value since tracking began" : (d.pnl == nil ? "Not enough historical marks for this period" : "Realized results + change in unrealized P&L")).font(.caption).foregroundStyle(Color.pulseSecondary)
+                            Text("\(d.open_positions) positions open now · \(liveMode(d) ? "Live · Robinhood" : "Paper / saved marks")").font(.caption)
                         }.frame(maxWidth: .infinity, alignment: .leading).card()
-                        LazyVGrid(columns: columns, alignment: .leading, spacing: 12) {
-                            metric("Realized P&L", money(d.realized))
-                            metric("Unrealized · now", money(d.unrealized))
-                            metric("Opening premiums", money(d.premium))
-                            metric("Closed trades", String(d.closed_trades))
-                            metric("Win rate", d.win_rate.map { String(format: "%.1f%%", $0) } ?? "—")
-                            metric("Profit factor", d.profit_factor.map { String(format: "%.2f", $0) } ?? "—")
+                        if liveMode(d) {
+                            LazyVGrid(columns: columns, alignment: .leading, spacing: 12) {
+                                metric("Account value", money(d.account_value))
+                                metric("Period change", signedMoney(d.pnl))
+                                metric("Positions open", String(d.open_positions))
+                                metric("Tracking since", shortDate(d.history_since))
+                            }
+                        } else {
+                            LazyVGrid(columns: columns, alignment: .leading, spacing: 12) {
+                                metric("Realized P&L", money(d.realized))
+                                metric("Unrealized · now", money(d.unrealized))
+                                metric("Opening premiums", money(d.premium))
+                                metric("Closed trades", String(d.closed_trades))
+                                metric("Win rate", d.win_rate.map { String(format: "%.1f%%", $0) } ?? "—")
+                                metric("Profit factor", d.profit_factor.map { String(format: "%.2f", $0) } ?? "—")
+                            }
                         }
                         VStack(alignment: .leading, spacing: 12) {
                             SectionHeader(d.curve_label)
@@ -79,25 +90,27 @@ struct PerformanceView: View {
                                 Chart(d.curve) { point in
                                     LineMark(x: .value("Date", point.date), y: .value("P&L", point.pnl))
                                         .foregroundStyle(Color.pulseGreen)
-                                }.frame(height: 180).accessibilityLabel("Observed paper P&L history")
+                                }.frame(height: 180).accessibilityLabel(liveMode(d) ? "Observed account value history" : "Observed paper P&L history")
                             } else {
                                 Text("Your history starts here").font(.headline)
                                 Text("Snapshots are recorded while the backend runs. A curve appears after the next observation.").font(.caption).foregroundStyle(Color.pulseSecondary)
                             }
                             Text("Observations since \(String(d.history_since.prefix(10))). Gaps connect recorded points; missing periods are not reconstructed.").font(.caption).foregroundStyle(Color.pulseSecondary)
                         }.card()
-                        SectionHeader("Trade quality")
-                        LazyVGrid(columns: columns, spacing: 12) {
-                            metric("Average winner", money(d.average_win))
-                            metric("Average loser", money(d.average_loss))
-                            metric("Best close", money(d.best_trade))
-                            metric("Worst close", money(d.worst_trade))
-                        }
-                        Text("Based on recorded closes in this window. Flat closes count toward win rate; profit factor requires a losing trade. Premiums are receipts, not profit.").font(.caption).foregroundStyle(Color.pulseSecondary)
-                        SectionHeader("Results by strategy")
-                        if d.strategies.isEmpty { Text("No dated closed trades in this period yet.").font(.callout).foregroundStyle(Color.pulseSecondary) }
-                        ForEach(d.strategies) { s in
-                            HStack { VStack(alignment: .leading) { Text(s.strategy); Text("\(s.trades) closed trades").font(.caption).foregroundStyle(Color.pulseSecondary) }; Spacer(); Text(money(s.realized)) }.card()
+                        if !liveMode(d) {
+                            SectionHeader("Trade quality")
+                            LazyVGrid(columns: columns, spacing: 12) {
+                                metric("Average winner", money(d.average_win))
+                                metric("Average loser", money(d.average_loss))
+                                metric("Best close", money(d.best_trade))
+                                metric("Worst close", money(d.worst_trade))
+                            }
+                            Text("Based on recorded closes in this window. Flat closes count toward win rate; profit factor requires a losing trade. Premiums are receipts, not profit.").font(.caption).foregroundStyle(Color.pulseSecondary)
+                            SectionHeader("Results by strategy")
+                            if d.strategies.isEmpty { Text("No dated closed trades in this period yet.").font(.callout).foregroundStyle(Color.pulseSecondary) }
+                            ForEach(d.strategies) { s in
+                                HStack { VStack(alignment: .leading) { Text(s.strategy); Text("\(s.trades) closed trades").font(.caption).foregroundStyle(Color.pulseSecondary) }; Spacer(); Text(money(s.realized)) }.card()
+                            }
                         }
                         DisclosureGroup("About these numbers") {
                             VStack(alignment: .leading, spacing: 10) {
@@ -116,6 +129,16 @@ struct PerformanceView: View {
             }
         }
     }
+    private func liveMode(_ d: PerformanceReport) -> Bool { d.mode == "live" }
+
+    private func shortDate(_ iso: String) -> String {
+        guard let date = parseISODate(iso) else { return "—" }
+        let f = DateFormatter()
+        f.dateStyle = .medium
+        f.timeStyle = .none
+        return f.string(from: date)
+    }
+
     private func metric(_ label: String, _ value: String) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(label).font(.caption).foregroundStyle(Color.pulseSecondary)
@@ -306,21 +329,6 @@ struct NewsView: View {
         }
     }
 
-    private func likeIdea(_ idea: ProductIdea) async {
-        guard !upgradeBusy else { return }
-        upgradeBusy = true
-        upgradeError = nil
-        defer { upgradeBusy = false }
-        do {
-            try await APIClient.shared.likeIdea(ideaId: idea.id)
-            upgradeJob = nil
-            await load()
-            await refreshUpgrade()
-        } catch {
-            upgradeError = (error as? APIError)?.errorDescription ?? error.localizedDescription
-        }
-    }
-
     private func upgradeControl(for idea: ProductIdea) -> some View {
         Group {
             if let job = upgradeJob, job.idea_id == idea.id, job.status != "undone" {
@@ -362,19 +370,12 @@ struct NewsView: View {
                     Text("Deployed to your iPhone")
                         .font(.callout.weight(.semibold))
                 }
-                HStack(spacing: 8) {
-                    Button("Undo this upgrade", role: .destructive) {
-                        Task { await undoUpgrade(job) }
-                    }
-                    .buttonStyle(.bordered)
-                    .disabled(upgradeBusy)
-                    Button("I like it") {
-                        Task { await likeIdea(idea) }
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(upgradeBusy)
+                Button("Undo this upgrade", role: .destructive) {
+                    Task { await undoUpgrade(job) }
                 }
-                Text("Undo reverts the upgrade. I like it keeps it and swaps in a fresh suggestion.")
+                .buttonStyle(.bordered)
+                .disabled(upgradeBusy)
+                Text("Reverts the upgrade's changes and reinstalls the previous build.")
                     .font(.caption).foregroundStyle(Color.pulseSecondary)
             case "undo_requested", "undoing":
                 statusRow("Undoing — reverting the changes and reinstalling the previous build.")

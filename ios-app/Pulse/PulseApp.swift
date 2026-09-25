@@ -5,7 +5,6 @@ struct PulseApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
-                .preferredColorScheme(.dark)
         }
     }
 }
@@ -15,6 +14,15 @@ struct ContentView: View {
     @State private var selectedTab = "Home"
     @State private var pendingUpgrade: ProductIdea?
     @StateObject private var assistantModel=AssistantModel()
+    @Environment(\.scenePhase) private var scenePhase
+    /// White in the morning, black at night.
+    @State private var scheme: ColorScheme = ContentView.dayScheme()
+
+    /// Light 6:00–18:00, dark otherwise.
+    static func dayScheme(for date: Date = Date()) -> ColorScheme {
+        let hour = Calendar.current.component(.hour, from: date)
+        return (6 <= hour && hour < 18) ? .light : .dark
+    }
     var body: some View {
         GeometryReader { geometry in
             HStack(spacing: 0) {
@@ -46,6 +54,13 @@ struct ContentView: View {
                         .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { assistantOpen = false } } }
                 }.presentationDetents([.large]).presentationDragIndicator(.visible)
             }
+        }
+        .preferredColorScheme(scheme)
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { scheme = Self.dayScheme() }
+        }
+        .onReceive(Timer.publish(every: 300, on: .main, in: .common).autoconnect()) { _ in
+            scheme = Self.dayScheme()
         }
     }
 }

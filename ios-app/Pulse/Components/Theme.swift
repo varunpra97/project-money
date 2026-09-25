@@ -7,10 +7,17 @@ extension Color {
     static let pulseGreen = Color(red: 0.0, green: 200.0 / 255.0, blue: 5.0 / 255.0)
     /// Robinhood red
     static let pulseRed = Color(red: 1.0, green: 80.0 / 255.0, blue: 0.0)
-    static let pulseBg = Color.black
-    static let pulseCard = Color(white: 0.09)
-    static let pulseSecondary = Color(white: 0.62)
-    static let pulseTertiary = Color(white: 0.4)
+    /// App background: white in the morning, black at night.
+    static let pulseBg = Color(UIColor { $0.userInterfaceStyle == .dark ? .black : .white })
+    static let pulseCard = Color(UIColor {
+        $0.userInterfaceStyle == .dark ? UIColor(white: 0.09, alpha: 1) : UIColor(white: 0.94, alpha: 1)
+    })
+    static let pulseSecondary = Color(UIColor {
+        $0.userInterfaceStyle == .dark ? UIColor(white: 0.62, alpha: 1) : UIColor(white: 0.42, alpha: 1)
+    })
+    static let pulseTertiary = Color(UIColor {
+        $0.userInterfaceStyle == .dark ? UIColor(white: 0.40, alpha: 1) : UIColor(white: 0.60, alpha: 1)
+    })
 }
 
 // MARK: - Card container

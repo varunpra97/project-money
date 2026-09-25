@@ -65,7 +65,7 @@ struct ActivityView: View {
         .shimmer()
     }
 
-    private func statCard(_ label: String, _ value: String, color: Color = .white) -> some View {
+    private func statCard(_ label: String, _ value: String, color: Color = .primary) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(label)
                 .font(.caption)
