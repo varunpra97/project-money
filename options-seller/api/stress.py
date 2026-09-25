@@ -10,7 +10,9 @@ decay) — and reports the per-position and portfolio P&L impact.
 an IV jump, and one day of theta decay would do to their book *before*
 opening a trade.
 
-Market data (spot + per-symbol IV) comes from yfinance, cached 60s in memory.
+Market data (spot + per-symbol IV) comes from yfinance with a CBOE delayed-quotes
+fallback (same resilient pattern as the /api/options chain proxy), cached 60s
+in memory.
 Legs are valued with the position's dte as time to expiry. Covered calls also
 include the 100-shares-per-contract stock leg. A symbol that fails to resolve
 is reported with a note and excluded from totals; the endpoint never 500s.
@@ -50,13 +52,8 @@ def _bs_price(spot: float, strike: float, t_years: float, rate: float,
     return strike * math.exp(-rate * t) * _norm_cdf(-d2) - spot * _norm_cdf(-d1)
 
 
-def _market(symbol: str) -> dict[str, Any]:
-    """Spot price + near-the-money IV for a symbol (60s memory cache)."""
-    sym = symbol.upper()
-    now = time.monotonic()
-    hit = _market_cache.get(sym)
-    if hit is not None and hit[0] > now:
-        return hit[1]
+def _market_yfinance(sym: str) -> dict[str, Any]:
+    """Spot + near-the-money IV via yfinance. Empty fields when blocked."""
     out: dict[str, Any] = {"spot": None, "iv": None}
     try:
         import yfinance as yf
@@ -95,7 +92,74 @@ def _market(symbol: str) -> dict[str, Any]:
                 ivs.sort()
                 out["iv"] = ivs[len(ivs) // 2]
     except Exception:
-        log.warning("stress: market data failed for %s", sym, exc_info=True)
+        log.warning("stress: yfinance market data failed for %s", sym)
+    return out
+
+
+def _market_cboe(sym: str) -> dict[str, Any]:
+    """CBOE 15-min delayed quotes fallback (cdn.cboe.com, no auth).
+
+    Same source the /api/options chain proxy falls back to — reachable from
+    datacenter IPs where Yahoo blocks yfinance."""
+    import json as _json
+    import re as _re
+    import urllib.request
+
+    out: dict[str, Any] = {"spot": None, "iv": None}
+    try:
+        url = f"https://cdn.cboe.com/api/global/delayed_quotes/options/{sym}.json"
+        req = urllib.request.Request(url, headers={"User-Agent": "Pulse/1.0"})
+        with urllib.request.urlopen(req, timeout=25) as resp:
+            if resp.status != 200:
+                return out
+            payload = _json.load(resp)
+    except Exception:
+        log.warning("stress: CBOE market data failed for %s", sym)
+        return out
+    data = (payload or {}).get("data") or {}
+    try:
+        spot = float(data.get("current_price"))
+    except (TypeError, ValueError):
+        return out
+    if not (spot and math.isfinite(spot)):
+        return out
+    out["spot"] = spot
+    ivs: list[float] = []
+    for r in data.get("options") or []:
+        m = _re.match(r"^(.+?)(\d{6})([CP])(\d{8})$", str(r.get("option") or ""))
+        if not m:
+            continue
+        strike = int(m.group(4)) / 1000.0
+        if strike < spot * 0.85 or strike > spot * 1.15:
+            continue
+        try:
+            f = float(r.get("iv"))
+            if 0.05 < f < 3.0:
+                ivs.append(f)
+        except (TypeError, ValueError):
+            pass
+    if ivs:
+        ivs.sort()
+        out["iv"] = ivs[len(ivs) // 2]
+    return out
+
+
+def _market(symbol: str) -> dict[str, Any]:
+    """Spot price + near-the-money IV for a symbol (60s memory cache).
+
+    yfinance first, CBOE delayed quotes fallback — mirrors the /api/options
+    chain proxy so the lab works from datacenter IPs Yahoo blocks."""
+    sym = symbol.upper()
+    now = time.monotonic()
+    hit = _market_cache.get(sym)
+    if hit is not None and hit[0] > now:
+        return hit[1]
+    out = _market_yfinance(sym)
+    if not out.get("spot") or not out.get("iv"):
+        fallback = _market_cboe(sym)
+        for k in ("spot", "iv"):
+            if out.get(k) is None and fallback.get(k) is not None:
+                out[k] = fallback[k]
     _market_cache[sym] = (now + MARKET_TTL, out)
     return out
 
