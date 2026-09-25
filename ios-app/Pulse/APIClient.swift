@@ -138,6 +138,62 @@ final class APIClient {
 
     // MARK: - Endpoints
 
+    /// Read-only token for the real-brokerage endpoints, injected at build
+    /// time via $(APP_READ_TOKEN) in Info.plist. Nil when the build didn't
+    /// provide one — brokerage endpoints then stay unreachable.
+    private var appReadToken: String? {
+        guard let t = Bundle.main.object(forInfoDictionaryKey: "AppReadToken") as? String,
+              !t.isEmpty, !t.contains("$(") else { return nil }
+        return t
+    }
+
+    private func authedRequest(for url: URL) -> URLRequest {
+        var req = URLRequest(url: url)
+        if let tok = appReadToken {
+            req.setValue(tok, forHTTPHeaderField: "X-App-Token")
+        }
+        return req
+    }
+
+    private func check(_ data: Data, _ resp: URLResponse) throws -> Data {
+        if let payload = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let message = (payload["error"] ?? payload["detail"]) as? String {
+            throw APIError.server(message)
+        }
+        guard let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+            throw APIError.http((resp as? HTTPURLResponse)?.statusCode ?? -1)
+        }
+        return data
+    }
+
+    func authedGet<T: Decodable>(_ path: String, ttl: TimeInterval = 60) async throws -> T {
+        let u = try url(for: path)
+        do {
+            let (data, resp) = try await session.data(for: authedRequest(for: u))
+            return try decode(check(data, resp))
+        } catch let apiErr as APIError {
+            throw apiErr
+        } catch {
+            throw APIError.network(error)
+        }
+    }
+
+    func authedPost<T: Decodable>(_ path: String, body: [String: Any] = [:]) async throws -> T {
+        let u = try url(for: path)
+        var req = authedRequest(for: u)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try JSONSerialization.data(withJSONObject: body)
+        do {
+            let (data, resp) = try await session.data(for: req)
+            return try decode(check(data, resp))
+        } catch let apiErr as APIError {
+            throw apiErr
+        } catch {
+            throw APIError.network(error)
+        }
+    }
+
     func health() async throws -> HealthResponse {
         try await get("/api/health", ttl: 30)
     }
@@ -149,6 +205,28 @@ final class APIClient {
     func positions() async throws -> [Position] {
         let r: PositionsResponse = try await get("/api/portfolio/positions", ttl: 30)
         return r.positions
+    }
+
+    // MARK: - Real brokerage book (Robinhood via Plaid)
+
+    /// Live positions from the synced brokerage snapshot. Throws
+    /// APIError.http(404) when no snapshot has synced yet.
+    func brokeragePositions() async throws -> [Position] {
+        let r: PositionsResponse = try await authedGet("/api/brokerage/positions", ttl: 30)
+        return r.positions
+    }
+
+    func brokerageSummary() async throws -> PortfolioSummary {
+        try await authedGet("/api/brokerage/summary", ttl: 30)
+    }
+
+    /// Shock the real book with a price move, an IV jump, and time decay.
+    func brokerageStressTest(priceMovePct: Double, volJumpPct: Double, daysForward: Int) async throws -> StressTestResponse {
+        try await authedPost("/api/brokerage/stress/test", body: [
+            "price_move_pct": priceMovePct,
+            "vol_jump_pct": volJumpPct,
+            "days_forward": daysForward,
+        ])
     }
 
     func activity() async throws -> [ActivityItem] {

@@ -34,6 +34,8 @@ struct HomeView: View {
     }
     @State private var error: String?
     @State private var loading = true
+    /// True when positions come from the synced Robinhood book.
+    @State private var isLiveBook = false
 
     /// Headline chart tracks the largest position's underlying, else the S&P 500.
     private var chartSymbol: String { positions.first?.underlying ?? "SPY" }
@@ -118,14 +120,24 @@ struct HomeView: View {
                 Text(money(summary?.accountValue))
                     .font(.system(size: 34, weight: .semibold))
                     .heroNumber()
-                HStack(spacing: 6) {
-                    Text(signedMoney(summary?.dayPnl))
-                    Text("(\(pct(summary?.dayPnlPct)))")
-                    Text("Today")
-                        .foregroundStyle(Color.pulseSecondary)
+                if isLiveBook {
+                    HStack(spacing: 6) {
+                        Text("Live")
+                            .foregroundStyle(Color.pulseGreen)
+                        Text("· Buying power \(money(summary?.buyingPower))")
+                            .foregroundStyle(Color.pulseSecondary)
+                    }
+                    .font(.subheadline.weight(.medium))
+                } else {
+                    HStack(spacing: 6) {
+                        Text(signedMoney(summary?.dayPnl))
+                        Text("(\(pct(summary?.dayPnlPct)))")
+                        Text("Today")
+                            .foregroundStyle(Color.pulseSecondary)
+                    }
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(pnlColor(summary?.dayPnl))
                 }
-                .font(.subheadline.weight(.medium))
-                .foregroundStyle(pnlColor(summary?.dayPnl))
             }
         }
         .animation(.easeInOut(duration: 0.15), value: selectedDate)
@@ -156,7 +168,7 @@ struct HomeView: View {
 
     private var positionsSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            SectionHeader("Positions", subtitle: summary.map { "\($0.openPositions) open" })
+            SectionHeader("Positions", subtitle: summary.map { "\($0.openPositions) open" + (isLiveBook ? " · live" : " · paper") })
             Picker("Position value display", selection: $positionMetric) {
                 ForEach(positionMetrics, id: \.self) { Text($0).tag($0) }
             }
@@ -355,12 +367,25 @@ struct HomeView: View {
         loading = true
         error = nil
         do {
-            async let s = APIClient.shared.summary()
-            async let p = APIClient.shared.positions()
-            let (ss, pp) = try await (s, p)
-            guard !Task.isCancelled else { return }
-            summary = ss
-            positions = pp
+            do {
+                // Real Robinhood book first; paper book when no snapshot
+                // has synced yet (404).
+                async let s = APIClient.shared.brokerageSummary()
+                async let p = APIClient.shared.brokeragePositions()
+                let (ss, pp) = try await (s, p)
+                guard !Task.isCancelled else { return }
+                summary = ss
+                positions = pp
+                isLiveBook = true
+            } catch APIError.http(let code) where code == 404 {
+                async let s = APIClient.shared.summary()
+                async let p = APIClient.shared.positions()
+                let (ss, pp) = try await (s, p)
+                guard !Task.isCancelled else { return }
+                summary = ss
+                positions = pp
+                isLiveBook = false
+            }
             await loadQuote()
         } catch {
             if !Task.isCancelled { self.error = (error as? APIError)?.errorDescription ?? error.localizedDescription }

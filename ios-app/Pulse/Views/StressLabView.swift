@@ -58,10 +58,12 @@ struct StressTestResponse: Decodable {
     let asOf: String
     let totals: StressTotals
     let positions: [StressPositionResult]
+    let paperTradingOnly: Bool?
 
     enum CodingKeys: String, CodingKey {
         case scenario, totals, positions
         case asOf = "as_of"
+        case paperTradingOnly = "paper_trading_only"
     }
 }
 
@@ -203,7 +205,9 @@ struct StressLabView: View {
                 }
                 .card()
             }
-            Text("Paper trade only. Stress values are Black-Scholes estimates, not live marks.")
+            Text(result?.paperTradingOnly == false
+                 ? "Live book. Stress values are Black-Scholes estimates, not live marks."
+                 : "Paper trade only. Stress values are Black-Scholes estimates, not live marks.")
                 .font(.caption)
                 .foregroundStyle(Color.pulseTertiary)
         }
@@ -214,11 +218,20 @@ struct StressLabView: View {
         error = nil
         defer { running = false }
         do {
-            result = try await APIClient.shared.stressTest(
-                priceMovePct: priceMove,
-                volJumpPct: volJump,
-                daysForward: Int(daysForward)
-            )
+            do {
+                // Real book first; paper book when no snapshot has synced yet.
+                result = try await APIClient.shared.brokerageStressTest(
+                    priceMovePct: priceMove,
+                    volJumpPct: volJump,
+                    daysForward: Int(daysForward)
+                )
+            } catch APIError.http(let code) where code == 404 {
+                result = try await APIClient.shared.stressTest(
+                    priceMovePct: priceMove,
+                    volJumpPct: volJump,
+                    daysForward: Int(daysForward)
+                )
+            }
         } catch {
             self.error = error.localizedDescription
         }
