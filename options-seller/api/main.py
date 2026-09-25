@@ -1176,14 +1176,22 @@ try:
     from .analytics import performance
     from .news import news_feed
     from .ideas import like_idea
+    from . import brokerage as brokerage_mod
 except ImportError:  # startup script runs from api/
     from analytics import performance
     from news import news_feed
     from ideas import like_idea
+    import brokerage as brokerage_mod
 
 
 @app.get("/api/performance")
 def performance_endpoint(period: str = Query("lifetime", pattern="^(lifetime|week|month|quarter)$")):
+    # Real book first: account-value history replaces the paper P&L record.
+    try:
+        if brokerage_mod.load_snapshot():
+            return brokerage_mod.live_performance(period)
+    except Exception:
+        logging.exception("Live performance failed; falling back to paper")
     return performance(period)
 
 

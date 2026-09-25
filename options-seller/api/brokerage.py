@@ -27,6 +27,11 @@ log = logging.getLogger("pulse.brokerage")
 
 _DATA = Path(__file__).resolve().parent / "data"
 _SNAP_FILE = _DATA / "brokerage_snapshot.json"
+_PERF_FILE = _DATA / "brokerage_perf_samples.json"
+# At most one account-value observation per interval; the sync runs every 15 min.
+_PERF_MIN_INTERVAL_S = 1800
+# Cap the local fallback file / table growth.
+_PERF_MAX_SAMPLES = 2000
 
 
 def _now() -> str:
@@ -90,6 +95,12 @@ def _db_init(conn) -> None:
                    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
                )"""
         )
+        cur.execute(
+            """CREATE TABLE IF NOT EXISTS brokerage_perf_samples (
+                   ts TIMESTAMPTZ PRIMARY KEY,
+                   account_value DOUBLE PRECISION NOT NULL
+               )"""
+        )
     _db_init_done = True
 
 
@@ -142,6 +153,10 @@ def save_snapshot(payload: dict) -> dict:
         tmp.write_text(blob)
         tmp.replace(_SNAP_FILE)
     log.info("brokerage: snapshot saved (%d positions)", len(positions))
+    try:
+        record_perf_sample(stored["summary"].get("account_value"), synced_at)
+    except Exception:
+        log.warning("brokerage: perf sample failed", exc_info=True)
     return {"ok": True, "positions": len(positions),
             "holdings": len(holdings), "synced_at": synced_at}
 
@@ -272,6 +287,8 @@ def _map_option_group(underlying: str, expiry: str, legs: list) -> dict:
 
     legs_out = [{k: i[k] for k in ("side", "option_type", "strike", "quantity", "expiry")}
                 for i in items]
+    for leg_o, leg_i in zip(legs_out, items):
+        leg_o["value"] = round(leg_i["_value"], 2)
     return {
         "id": f"rh-{underlying}-{expiry}",
         "underlying": underlying,
@@ -360,4 +377,162 @@ def summary_payload(account: dict, holdings, securities, positions, synced_at: s
         "open_positions": len(positions),
         "greeks": None,
         "as_of": synced_at,
+    }
+
+
+# ── Live performance history ──────────────────────────────────────────────
+# Account-value observations recorded on every snapshot save. Powers the
+# Performance tab's live mode: a reset baseline that starts when real-book
+# tracking began (the old paper P&L history is no longer shown).
+
+def _stamp(value) -> datetime | None:
+    try:
+        d = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        return d.replace(tzinfo=timezone.utc) if d.tzinfo is None else d.astimezone(timezone.utc)
+    except (ValueError, TypeError):
+        return None
+
+
+def record_perf_sample(account_value, ts: str) -> None:
+    """Append an account-value observation, throttled to one per interval."""
+    try:
+        value = float(account_value)
+    except (TypeError, ValueError):
+        return
+    if value <= 0:
+        return
+    if _db_configured():
+        try:
+            with _pg() as conn:
+                _db_init(conn)
+                with conn.cursor() as cur:
+                    cur.execute("SELECT ts FROM brokerage_perf_samples ORDER BY ts DESC LIMIT 1")
+                    row = cur.fetchone()
+                    if row and row[0] is not None:
+                        last = row[0].replace(tzinfo=timezone.utc) if row[0].tzinfo is None else row[0]
+                        if (datetime.now(timezone.utc) - last).total_seconds() < _PERF_MIN_INTERVAL_S:
+                            return
+                    cur.execute(
+                        "INSERT INTO brokerage_perf_samples (ts, account_value) VALUES (%s, %s) "
+                        "ON CONFLICT (ts) DO NOTHING",
+                        (ts, value),
+                    )
+                    cur.execute(
+                        "DELETE FROM brokerage_perf_samples WHERE ts < NOW() - INTERVAL '400 days'"
+                    )
+        except Exception:
+            log.warning("brokerage: perf sample record failed", exc_info=True)
+    else:
+        _DATA.mkdir(parents=True, exist_ok=True)
+        samples = []
+        if _PERF_FILE.exists():
+            try:
+                samples = json.loads(_PERF_FILE.read_text())
+            except (ValueError, OSError):
+                samples = []
+        if samples:
+            last = _stamp(samples[-1].get("ts"))
+            if last and (datetime.now(timezone.utc) - last).total_seconds() < _PERF_MIN_INTERVAL_S:
+                return
+        samples.append({"ts": ts, "account_value": value})
+        samples = samples[-_PERF_MAX_SAMPLES:]
+        tmp = _PERF_FILE.with_suffix(".tmp")
+        tmp.write_text(json.dumps(samples))
+        tmp.replace(_PERF_FILE)
+
+
+def load_perf_samples() -> list:
+    """Account-value observations, oldest first."""
+    if _db_configured():
+        try:
+            with _pg() as conn:
+                _db_init(conn)
+                with conn.cursor() as cur:
+                    cur.execute("SELECT ts, account_value FROM brokerage_perf_samples ORDER BY ts ASC")
+                    return [{"ts": r[0].isoformat(), "account_value": float(r[1])} for r in cur.fetchall()]
+        except Exception:
+            log.warning("brokerage: perf samples read failed", exc_info=True)
+            return []
+    if _PERF_FILE.exists():
+        try:
+            return json.loads(_PERF_FILE.read_text())
+        except (ValueError, OSError):
+            return []
+    return []
+
+
+def live_performance(period: str = "lifetime") -> dict:
+    """Performance-tab payload for the real book.
+
+    Same shape as analytics.performance() plus mode="live" and the current
+    account value. P&L is the change in account value versus the baseline —
+    the feed provides no cost basis, so per-trade P&L is unavailable.
+    """
+    from datetime import timedelta
+
+    now = datetime.now(timezone.utc)
+    snap = load_snapshot() or {}
+    summary = snap.get("summary") or {}
+    try:
+        account_value = round(float(summary.get("account_value") or 0), 2)
+    except (TypeError, ValueError):
+        account_value = 0.0
+    positions = snap.get("positions") or []
+    samples = [s for s in load_perf_samples() if _stamp(s.get("ts")) is not None]
+
+    days = {"week": 7, "month": 30, "quarter": 90}.get(period)
+    since = now - timedelta(days=days) if days else None
+
+    baseline = None
+    if samples:
+        if since is not None:
+            earlier = [s for s in samples if _stamp(s["ts"]) <= since]
+            baseline = earlier[-1] if earlier else None
+        else:
+            baseline = samples[0]
+
+    notes = [
+        "Live brokerage account. P&L is the change in account value since tracking "
+        "began; the feed doesn't provide cost basis, so per-trade P&L isn't available.",
+    ]
+    if baseline is not None:
+        bval = float(baseline["account_value"])
+        pnl = round(account_value - bval, 2)
+        curve = [
+            {"ts": s["ts"], "pnl": round(float(s["account_value"]) - bval, 2)}
+            for s in samples
+            if since is None or _stamp(s["ts"]) >= since
+        ]
+        curve_label = "Account value change"
+    else:
+        pnl = None
+        curve = []
+        curve_label = "Account value change"
+        if since is not None:
+            notes.append("Not enough history for this period yet — live tracking just started.")
+
+    history_since = samples[0]["ts"] if samples else snap.get("synced_at") or _now()
+    return {
+        "mode": "live",
+        "period": period,
+        "as_of": now.isoformat(),
+        "since": since.isoformat() if since else None,
+        "pnl": pnl,
+        "realized": 0.0,
+        "unrealized": 0.0,
+        "closed_trades": 0,
+        "win_rate": None,
+        "average_win": None,
+        "average_loss": None,
+        "best_trade": None,
+        "worst_trade": None,
+        "profit_factor": None,
+        "open_positions": len(positions),
+        "premium": 0.0,
+        "account_value": account_value,
+        "history_since": history_since,
+        "curve": curve,
+        "curve_label": curve_label,
+        "strategies": [],
+        "notes": notes,
     }
