@@ -222,4 +222,15 @@ final class APIClient {
         let ack: Ack = try await post("/api/ideas/\(ideaId)/like")
         if !ack.ok { throw APIError.server("Like was not saved") }
     }
+
+    // MARK: - Stress lab
+
+    /// Shock the paper book with a price move, an IV jump, and time decay.
+    func stressTest(priceMovePct: Double, volJumpPct: Double, daysForward: Int) async throws -> StressTestResponse {
+        try await post("/api/stress/test", body: [
+            "price_move_pct": priceMovePct,
+            "vol_jump_pct": volJumpPct,
+            "days_forward": daysForward,
+        ])
+    }
 }

@@ -162,6 +162,24 @@ struct HomeView: View {
             }
             .pickerStyle(.menu)
             Text(metricNote).font(.caption).foregroundStyle(Color.pulseSecondary)
+            NavigationLink {
+                StressLabView()
+            } label: {
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Stress Lab")
+                            .font(.headline)
+                        Text("Test a price shock, an IV jump and time decay on your book before you trade.")
+                            .font(.caption)
+                            .foregroundStyle(Color.pulseSecondary)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .foregroundStyle(Color.pulseTertiary)
+                }
+                .card()
+            }
+            .buttonStyle(.plain)
             if loading && positions.isEmpty {
                 ForEach(0..<3, id: \.self) { _ in
                     RoundedRectangle(cornerRadius: 14)

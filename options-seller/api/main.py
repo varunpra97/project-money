@@ -540,6 +540,19 @@ def events_endpoint(symbols: str = ""):
     return events_get(symbols)
 
 
+@app.post("/api/stress/test")
+@_api
+def stress_endpoint(body: dict):
+    """Volatility stress lab: test a price move, an IV jump, and time decay
+    against the open paper book before opening a trade. Never fails the
+    request — unresolvable symbols are reported with a note."""
+    return stress_run(
+        price_move_pct=body.get("price_move_pct", 0),
+        vol_jump_pct=body.get("vol_jump_pct", 0),
+        days_forward=body.get("days_forward", 1),
+    )
+
+
 @app.get("/api/version")
 @_api
 def version():
@@ -1128,6 +1141,7 @@ try:
     from .thetahedge import collect as thetahedge_collect, load as thetahedge_load
     from .breaches import collect as breaches_collect, load as breaches_load
     from .events import get_events as events_get
+    from .stress import run_stress_test as stress_run
     from .upgrades import (
         create_job as upgrades_create,
         latest_job as upgrades_latest,
@@ -1147,6 +1161,7 @@ except ImportError:
     from thetahedge import collect as thetahedge_collect, load as thetahedge_load
     from breaches import collect as breaches_collect, load as breaches_load
     from events import get_events as events_get
+    from stress import run_stress_test as stress_run
     from upgrades import (
         create_job as upgrades_create,
         latest_job as upgrades_latest,
